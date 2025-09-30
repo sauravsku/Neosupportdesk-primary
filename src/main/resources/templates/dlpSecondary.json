@@ -1,0 +1,26 @@
+[
+  {
+    "name": "LOS (Loan Origination System)",
+    "description": "Submit issues related to the loan application and onboarding processes.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 1,
+    "issueDetails": []
+  },
+  {
+    "name": "LMS (Loan Management System)",
+    "description": "Get support for loan servicing, repayments, and account management.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 1,
+    "issueDetails": []
+  },
+  {
+    "name": "Co-Lending",
+    "description": "Raise tickets regarding shared lending processes with partner institutions.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 1,
+    "issueDetails": []
+  }
+]

@@ -1,0 +1,93 @@
+[
+  {
+    "issueName": "Login & Access issues",
+    "issueDesc": "Problems related to login failures, credential mismatches, or account lockouts.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Device & App Issues",
+    "issueDesc": "Errors or crashes related to mobile device compatibility or app malfunction.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Network & Connectivity",
+    "issueDesc": "User unable to access services due to internet or server connectivity issues.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Document upload & verification",
+    "issueDesc": "Issues in uploading, validating, or verifying user documents.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Scheduling & availability",
+    "issueDesc": "Concerns regarding appointment scheduling or service availability.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Process Flow issues",
+    "issueDesc": "Errors or challenges faced during workflow or process execution.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Post KYC concerns",
+    "issueDesc": "User issues encountered after KYC completion such as account updates or mismatches.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 20,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  }
+]

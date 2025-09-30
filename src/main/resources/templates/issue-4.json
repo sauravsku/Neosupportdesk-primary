@@ -1,0 +1,93 @@
+[
+  {
+    "issueName": "Appointment & Availability",
+    "issueDesc": "Problems related to booking, rescheduling, or availability of appointment slots.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Device & App Issues",
+    "issueDesc": "Technical issues with mobile devices, applications, or software compatibility.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Customer identification issues",
+    "issueDesc": "Errors or delays in customer identification during KYC or onboarding.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Video KYC session problems",
+    "issueDesc": "Issues such as session drops, audio/video quality problems, or interruptions during Video KYC.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Document capture issues",
+    "issueDesc": "Problems related to uploading, capturing, or validating required documents.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Process Flow issues",
+    "issueDesc": "Errors or confusion in following the defined KYC or onboarding process steps.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Status & Completion",
+    "issueDesc": "Concerns regarding KYC progress updates, incomplete processes, or delays in completion.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 23,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  }
+]

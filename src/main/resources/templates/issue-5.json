@@ -1,0 +1,28 @@
+[
+  {
+    "issueName": "Login & Access issues",
+    "issueDesc": "Problems related to user login, authentication, password reset, or account access restrictions.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 25,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Network & Connectivity",
+    "issueDesc": "Issues with internet connectivity, VPN access, or unstable network connections impacting portal usage.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 25,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  }
+]

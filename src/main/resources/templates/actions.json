@@ -1,0 +1,18 @@
+[
+  {
+    "actionId":1,
+    "actionName": "Escalate"
+  },
+  {
+    "actionId":2,
+    "actionName": "Resolve"
+  },
+  {
+    "actionId":3,
+    "actionName": "Follow up"
+  },
+  {
+    "actionId":4,
+    "actionName": "close"
+  }
+]

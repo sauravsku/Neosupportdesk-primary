@@ -1,0 +1,93 @@
+[
+  {
+    "issueName": "Login & Access issues",
+    "issueDesc": "Problems related to login failures, credential mismatches, or account lockouts.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Device & App Issues",
+    "issueDesc": "Errors, crashes, or compatibility issues related to devices and application usage.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Awareness & Eligibility",
+    "issueDesc": "Queries regarding scheme eligibility, benefits awareness, or participation guidelines.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Video KYC session problems",
+    "issueDesc": "Technical or operational difficulties during the video KYC session process.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Document & Identity Verification",
+    "issueDesc": "Issues related to document upload, validation errors, or identity verification failures.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Status & Completion",
+    "issueDesc": "Problems in checking application status, delays in approval, or incomplete processing.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Special Pensioner Concerns",
+    "issueDesc": "Support for senior pensioners, special category applicants, or unique case handling.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 22,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  }
+]

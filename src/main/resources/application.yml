@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: CentNeoSupportDeskSvc
+  profiles:
+    active: dev  # Set active profile
+  mvc:
+    servlet:
+      path: /primary/api/v1
+
+server:
+  port: 9003
+
+supportDeskAuthSvc:
+  base-url: http://localhost:9002/api/identity
+
+# how often scheduler runs (ms)
+userSync:
+  scheduler:
+    delay-ms: 30000  #1HR
+
+assignee:
+  scheduler:
+    delay-ms: 30000  #30 SECS
+    batch-size: 20 # how many pending tickets to process per level each run
+
+escalation:
+  scheduler:
+    delay-ms: 30000 #5 Mins
+
+
+jwt:
+  public-key-file: /Users/centralbankofindia/Desktop/CBI/Project/Cent Neo Support Desk/neosupportdesk-primary/src/main/resources/keys/jwt_public_key.pem
+  issuer: centneo
+
+logging:
+  level:
+    org.springframework: INFO
+    com.centNeo: DEBUG
+    org.springframework.security: TRACE
+    org.springframework.ldap: TRACE
+    org.springframework.security.ldap: TRACE
+#    com.zaxxer.hikari: TRACE
+#    org.hibern

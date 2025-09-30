@@ -1,0 +1,18 @@
+[
+  {
+    "priorityName": "Critical",
+    "defaultTat": 2
+  },
+  {
+    "priorityName": "High",
+    "defaultTat": 7
+  },
+  {
+    "priorityName": "Medium",
+    "defaultTat": 15
+  },
+  {
+    "priorityName": "Low",
+    "defaultTat": 30
+  }
+]

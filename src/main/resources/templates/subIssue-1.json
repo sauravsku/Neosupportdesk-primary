@@ -1,0 +1,103 @@
+[
+  {
+    "issueName": "Unable to login into the Video KYC portal",
+    "issueDesc": "User unable to access the Video KYC portal during login.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 152
+  },
+  {
+    "issueName": "OTP not received/invalid during login",
+    "issueDesc": "One-time password not received or invalid while attempting to log in.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 152
+  },
+  {
+    "issueName": "KYC link not opening in browser",
+    "issueDesc": "The shared KYC link does not open in the user’s browser.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 152
+  },
+  {
+    "issueName": "KYC link expired before session start",
+    "issueDesc": "The KYC link expired before the scheduled session could start.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 152
+  },
+  {
+    "issueName": "Session timed out before completion",
+    "issueDesc": "The Video KYC session ended unexpectedly due to timeout before completing the process.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 152
+  },
+  {
+    "issueName": "Camera not working / not detected",
+    "issueDesc": "Camera not working / not detected",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 153
+  },
+  {
+    "issueName": "Microphone not working /not detected",
+    "issueDesc": "Microphone not working /not detected",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 153
+  },
+  {
+    "issueName": "Poor video quality despite good network",
+    "issueDesc": "Poor video quality despite good network",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 153
+  },
+  {
+    "issueName": "App crashing or freezing during KYC",
+    "issueDesc": "App crashing or freezing during KYC",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 153
+  },
+  {
+    "issueName": "Browser not supported or not opening KYC link",
+    "issueDesc": "Browser not supported or not opening KYC link",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "issueDetailId": 153
+  }
+]
+

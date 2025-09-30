@@ -1,0 +1,54 @@
+[
+  {
+    "issueName": "Login & Access issues",
+    "issueDesc": "Problems related to login failures, credential mismatches, or account lockouts.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 26,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Data entry & document upload",
+    "issueDesc": "Issues while entering user details or uploading required KYC documents.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 26,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Submission",
+    "issueDesc": "Errors or failures occurring during the final submission of KYC or application forms.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 26,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "System issues",
+    "issueDesc": "Technical glitches, downtime, or unexpected system behavior during the KYC process.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 26,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  }
+]

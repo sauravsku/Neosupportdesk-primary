@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Video KYC - Saving A/C",
+    "description": "Open a savings account instantly using our secure video KYC process.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 3,
+    "issueDetails": []
+  },
+  {
+    "name": "Re-KYC for ETB Customer",
+    "description": "Update your KYC details as an existing bank customer via video.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 3,
+    "issueDetails": []
+  },
+  {
+    "name": "Online PLC Submission",
+    "description": "Submit your Pension Life Certificate (PLC) online with ease.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 3,
+    "issueDetails": []
+  },
+  {
+    "name": "Business Correspondent (BC)",
+    "description": "Open bank accounts through assisted BC onboarding using video KYC.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 3,
+    "issueDetails": []
+  },
+  {
+    "name": "Digital KYC (D-KYC)",
+    "description": "Paperless digital KYC submission for simplified onboarding.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 3,
+    "issueDetails": []
+  }
+]

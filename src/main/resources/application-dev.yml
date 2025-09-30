@@ -1,0 +1,56 @@
+spring:
+  datasource:
+    read:
+      url: jdbc:oracle:thin:@localhost:1521/XEPDB1
+      username: centneosupport
+      password: cnsd_pw
+      driver-class-name: oracle.jdbc.OracleDriver
+      hikari:
+        poolName: slavePool
+        maximumPoolSize: 50        # lowered for DB safety
+        minimumIdle: 5
+        idleTimeout: 60000
+        connectionTimeout: 30000
+        maxLifetime: 1800000
+        auto-commit: true
+        connectionTestQuery: SELECT 1 FROM DUAL
+        validationTimeout: 5000
+        leakDetectionThreshold: 2000
+        initializationFailTimeout: 1
+
+    write:
+      url: jdbc:oracle:thin:@localhost:1521/XEPDB1
+      username: centneosupport
+      password: cnsd_pw
+      driver-class-name: oracle.jdbc.OracleDriver
+      hikari:
+        poolName: masterPool
+        maximumPoolSize: 50        # lowered for DB safety
+        minimumIdle: 5
+        idleTimeout: 60000
+        connectionTimeout: 30000
+        maxLifetime: 1800000
+        auto-commit: true
+        connectionTestQuery: SELECT 1 FROM DUAL
+        validationTimeout: 5000
+        leakDetectionThreshold: 2000
+        initializationFailTimeout: 1
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+      naming:
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.Oracle12cDialect
+        format_sql: true
+
+# Optional: only if you need Spring to run schema/data SQL scripts at startup
+# Remove or comment out if data already exists
+# spring:
+#   sql:
+#     init:
+#       mode: never

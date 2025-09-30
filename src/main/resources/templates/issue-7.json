@@ -1,0 +1,54 @@
+[
+  {
+    "issueName": "Login & Access issues",
+    "issueDesc": "Problems faced during login or accessing the Digital KYC Admin Portal.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 27,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Verification process",
+    "issueDesc": "Errors or delays during verification of documents or customer details in the Admin Portal.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 27,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "Approval/Rejection process",
+    "issueDesc": "Challenges in approving or rejecting KYC applications in the Admin Portal.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 27,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  },
+  {
+    "issueName": "System & performance",
+    "issueDesc": "System errors, downtime, or performance issues within the Admin Portal.",
+    "issueExt1": "NA",
+    "issueExt2": "NA",
+    "issueExt3": "NA",
+    "issueExt4": "NA",
+    "issueExt5": "NA",
+    "catId": 10,
+    "sid": 27,
+    "secondaryCardId": 11,
+    "issueSubDetails": []
+  }
+]

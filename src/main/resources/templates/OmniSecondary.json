@@ -1,0 +1,98 @@
+[
+  {
+    "name": "Personal Banking",
+    "description": "Support for savings, deposits, and personal loan-related digital services.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "Corporate Banking",
+    "description": "Assistance with corporate accounts, business loans, and treasury services.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "Wealth Management",
+    "description": "Help with investments, portfolio management, and advisory services.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "Bank Assurance",
+    "description": "Get support for insurance products offered through our banking services.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "Bank Insurance",
+    "description": "Raise queries related to insurance claim processing or premium payments.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "WhatsApp Banking",
+    "description": "Issues or feedback regarding our WhatsApp-based digital banking services.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "BBPS (Bharat Bill Payment System)",
+    "description": "Support for utility bill payments, transaction failures, and status checks.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "ASBA (Application Supported by Blocked Amount)",
+    "description": "Help with IPO applications and ASBA transaction issues.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "UPI - NPCI",
+    "description": "Report problems with UPI transactions, QR scanning, or VPA issues.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "Rewards Point",
+    "description": "Query or issues related to your earned and redeemed reward points.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "PFM (Personal Finance Management)",
+    "description": "Assistance with budget tracking, expense categorization, and insights.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  },
+  {
+    "name": "Cards - Debit & Virtual",
+    "description": "Support for debit card transactions, virtual card generation, and limits.",
+    "subCount": 0,
+    "metaData": "{}",
+    "primaryCardId": 2,
+    "issueDetails": []
+  }
+]
