@@ -1,0 +1,22 @@
+package com.centneo.fintech.supportDeskSvc.config;
+
+import org.gitlab4j.api.GitLabApi;
+import org.gitlab4j.models.Constants;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class GitLabConfig {
+
+    @Bean
+    public GitLabApi gitLabApi(
+            @Value("${gitlab.url:https://gitlab.com}") String gitlabUrl,
+            @Value("${gitlab.token}") String token) {
+
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException("Missing required property: gitlab.token");
+        }
+        return new GitLabApi(gitlabUrl, Constants.TokenType.PRIVATE, token);
+    }
+}

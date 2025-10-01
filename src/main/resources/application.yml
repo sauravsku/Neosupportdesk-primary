@@ -13,6 +13,12 @@ server:
 supportDeskAuthSvc:
   base-url: http://localhost:9002/api/identity
 
+gitlab:
+  token: glpat-Auh7wo-J8rGFzu0-bV-M7286MQp1OjdnNmRqCw.01.1218tggtl
+  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
+  project-id: 74943366
+  url: https://gitlab.com
+
 # how often scheduler runs (ms)
 userSync:
   scheduler:

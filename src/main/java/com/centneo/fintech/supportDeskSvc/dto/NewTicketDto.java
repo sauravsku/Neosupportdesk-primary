@@ -33,6 +33,7 @@ public record NewTicketDto(
         Integer slaDays,
         LocalDateTime slaDueDatetime,
         String escalationPath,
-        String resolutionNote
+        String resolutionNote,
+        GitLabDto gitlab
 ) {
 }

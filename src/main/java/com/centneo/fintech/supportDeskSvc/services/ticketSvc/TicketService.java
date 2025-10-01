@@ -2,31 +2,38 @@ package com.centneo.fintech.supportDeskSvc.services.ticketSvc;
 
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.ZoneId;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.centneo.fintech.supportDeskSvc.dto.NewTicketDto;
 import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
 import com.centneo.fintech.supportDeskSvc.dto.TicketActionDto;
 import com.centneo.fintech.supportDeskSvc.dto.TicketRequestDto;
+import com.centneo.fintech.supportDeskSvc.enums.ActionsEnum;
 import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
 import com.centneo.fintech.supportDeskSvc.enums.TicketRequestEnum;
 import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
 import com.centneo.fintech.supportDeskSvc.events.DashboardUpdateEvent;
 import com.centneo.fintech.supportDeskSvc.model.primary.EscalationHistory;
+import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
 import com.centneo.fintech.supportDeskSvc.model.primary.SlaEscalationRule;
 import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.EscalationHistoryRepository;
+import com.centneo.fintech.supportDeskSvc.repository.write.repository.GitlabIssueRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
 
+import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabService;
+import jakarta.persistence.Column;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.gitlab4j.api.models.Issue;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,10 +46,16 @@ public class TicketService implements ITicket {
 
     private final TicketsRepository ticketsRepository;
     private final TicketRepositoryReadOnly ticketRepositoryReadOnly;
+    private final GitlabIssueRepository gitlabIssueRepository;
+    private final GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly;
     private final SlaRuleService slaRuleService;
     private final EscalationHistoryRepository escalationHistoryRepository;
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
     private final ApplicationEventPublisher publisher;
+    private final GitlabService gitlabService;
+
+    @Value("${gitlab.project-id}")
+    private String projectId;
 
     /** Create ticket: derive initial assignee level + SLA from rules */
     @Override
@@ -75,6 +88,98 @@ public class TicketService implements ITicket {
 
             Tickets savedTicket = ticketsRepository.save(ticket);
 
+            Integer actionId = Integer.parseInt(savedTicket.getActionId());
+            if (ActionsEnum.fromCode(actionId) == ActionsEnum.GITLAB) {
+
+                if (newTicketDto.gitlab() != null) {
+                    // build local GitLab entity (do not save remote metadata yet)
+                    var gitLabIssue = new GitLabIssues();
+                    gitLabIssue.setTicketId(savedTicket.getTicketId());
+                    gitLabIssue.setIssueType(newTicketDto.gitlab().issueType());
+                    gitLabIssue.setIssueTitle(Optional.ofNullable(newTicketDto.gitlab().issueTitle()).orElse("No title"));
+                    gitLabIssue.setIssueLabel(newTicketDto.gitlab().label());
+                    gitLabIssue.setIssueDescription(newTicketDto.gitlab().description());
+
+                    // Build labels safely (skip null/blank values)
+                    String labels = Stream.of(
+                                    gitLabIssue.getIssueLabel(),
+                                    gitLabIssue.getIssueType(),
+                                    savedTicket.getTicketId(),
+                                    savedTicket.getPriority()
+                            )
+                            .filter(Objects::nonNull)
+                            .map(Object::toString)
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.joining(","));
+
+                    // Convert configured projectId (string) to either Long or use as path
+                    Object projectIdOrPath = projectId;
+                    try {
+                        if (projectId != null && projectId.matches("^\\d+$")) {
+                            projectIdOrPath = Long.valueOf(projectId);
+                        }
+                    } catch (Exception ignore) {
+                        projectIdOrPath = projectId; // fallback to path
+                    }
+
+                    // convert dates
+                    Date createdAt = Date.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant());
+                    Date dueDate = null;
+                    if (savedTicket.getSlaDueDatetime() != null) {
+                        dueDate = Date.from(savedTicket.getSlaDueDatetime().atZone(ZoneId.systemDefault()).toInstant());
+                    }
+
+                    try {
+                        // create remote issue (assignee IDs: replace list with real IDs as needed)
+                        Issue remote = gitlabService.createIssue(
+                                projectIdOrPath,
+                                gitLabIssue.getIssueTitle(),
+                                gitLabIssue.getIssueDescription(),
+                                List.of(8571572L),
+                                labels,
+                                createdAt,
+                                dueDate
+                        );
+
+                        if (remote == null) {
+                            throw new IllegalStateException("GitLab API returned null when creating issue");
+                        }
+
+                        // Map remote metadata back to local entity
+                        Integer remoteProjectIdInt = Math.toIntExact(remote.getProjectId());
+                        if (remoteProjectIdInt != null) gitLabIssue.setProjectId(remoteProjectIdInt.longValue());
+                        else if (projectIdOrPath instanceof Long) gitLabIssue.setProjectId((Long) projectIdOrPath);
+
+                        Integer iid = Math.toIntExact(remote.getIid());
+                        if (iid != null) gitLabIssue.setIid(iid.longValue());
+
+                        gitLabIssue.setWebUrl(remote.getWebUrl());
+                        gitLabIssue.setIssueStatus("opened");
+                        gitLabIssue.setGitlabUpdatedAt(remote.getUpdatedAt());
+
+                        // assignee(s)
+                        if (remote.getAssignee() != null && remote.getAssignee().getId() != null) {
+                            gitLabIssue.setAssigneeId(remote.getAssignee().getId().longValue());
+                        } else if (remote.getAssignees() != null && !remote.getAssignees().isEmpty()) {
+                            Integer firstId = Math.toIntExact(remote.getAssignees().get(0).getId());
+                            if (firstId != null) gitLabIssue.setAssigneeId(firstId.longValue());
+                        }
+
+                        // Persist local GitLabIssues with remote identifiers
+                        gitlabIssueRepository.save(gitLabIssue);
+
+                    } catch (Exception ex) {
+                      //  log.error("Failed to create GitLab issue for ticket {}: {}", savedTicket.getTicketId(), ex.getMessage(), ex);
+                        // fail the request so caller knows; transaction will roll back if you prefer
+                        throw ex;
+                    }
+                } else {
+                    // missing gitlab DTO — ignore or handle as needed
+                   // log.warn("Ticket {} requested GitLab action but no gitlab payload provided", savedTicket.getTicketId());
+                }
+            }
+
             // build response
             ResponseDto response = new ResponseDto(
                     true,
@@ -96,6 +201,7 @@ public class TicketService implements ITicket {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
 
 
     @Transactional
