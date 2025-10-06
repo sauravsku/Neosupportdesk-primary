@@ -439,7 +439,27 @@ public class TicketService implements ITicket {
                             ? "No Tickets found created by user: " + ticketRequestDto.username()
                             : "Tickets fetched successfully created by: " + ticketRequestDto.username();
                     break;
-
+                case F:
+                    if (ticketRequestDto.username() == null || ticketRequestDto.username().isBlank()) {
+                        ResponseDto invalidResponse = new ResponseDto(
+                                false,
+                                "Assignee cannot be null or empty for request flag F.",
+                                null,
+                                400
+                        );
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
+                    }
+                    tickets = ticketRepositoryReadOnly.findByCurrentAssigneeAndActionId(ticketRequestDto.username(),
+                            ActionsEnum.FOLLOW_UP.getCode().toString());
+//                    tickets.stream().map(t -> {
+//                        t.setTicketRequesterSL(SupportLevelEnum.
+//                                fromLabel(t.getTicketRequesterSL()).getCode());
+//                        return t;
+//                    }).collect(Collectors.toUnmodifiableList());
+                    message = tickets.isEmpty()
+                            ? "No Tickets found created by user: " + ticketRequestDto.username()
+                            : "Tickets fetched successfully created by: " + ticketRequestDto.username();
+                    break;
                 default:
                     ResponseDto invalidResponse = new ResponseDto(
                             false,
@@ -693,7 +713,15 @@ public class TicketService implements ITicket {
         ticket.setActionId(newTicketDto.actionId());
         ticket.setPriority(newTicketDto.priority());
         ticket.setLoggedDatetime(newTicketDto.loggedDatetime());
-        ticket.setCallLogDetails(newTicketDto.callLog());
+        ticket.setBranchCode(newTicketDto.branchInfoDto().branchCode());
+
+        if (ActionsEnum.GITLAB.getCode().toString().equals(ticket.getActionId())) {
+            ticket.setCallLogDetails(newTicketDto.gitlab().description());
+        } else if (ActionsEnum.FOLLOW_UP.getCode().toString().equals(ticket.getActionId())) {
+            ticket.setCallLogDetails(newTicketDto.followUpComments());
+        } else {
+            ticket.setCallLogDetails(newTicketDto.callLog());
+        }
 
         ticket.setCurrentAssignee(newTicketDto.currentAssignee());
         ticket.setCurrentAssigneeSL(newTicketDto.currentAssigneeSL());

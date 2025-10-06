@@ -90,6 +90,9 @@ public class Tickets extends BaseEntity {
     @Column(name = "ESCALATION_PATH")
     private String escalationPath;
 
+    @Column(name = "BRANCH_CODE")
+    private String branchCode;
+
     @Lob
     @Column(name = "RESOLUTION_NOTE", columnDefinition = "CLOB")
     private String resolutionNote;

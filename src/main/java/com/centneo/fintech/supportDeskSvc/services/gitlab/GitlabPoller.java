@@ -52,7 +52,7 @@ public class GitlabPoller {
                     // map remote -> local
                     local.setIssueTitle(remote.getTitle());
                     local.setIssueDescription(remote.getDescription());
-                    local.setIssueStatus(remote.getState());
+                   // local.setIssueStatus(remote.getState());
 
                     // remote.getLabels() usually returns List<String>
                     String labels = null;
@@ -73,6 +73,7 @@ public class GitlabPoller {
                     local.setWebUrl(remote.getWebUrl());
                     local.setGitlabUpdatedAt(remoteUpdated);
                     local.setGitlabUpdatedAt(remote.getUpdatedAt());
+                    local.setIssueStatus(remote.getState().toString());
 
                     // Save updated local record
                     gitlabIssueRepository.save(local);

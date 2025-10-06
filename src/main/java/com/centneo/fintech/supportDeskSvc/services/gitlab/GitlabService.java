@@ -2,7 +2,10 @@ package com.centneo.fintech.supportDeskSvc.services.gitlab;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
+import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
 import lombok.RequiredArgsConstructor;
 import org.gitlab4j.api.GitLabApi;
 import org.gitlab4j.api.GitLabApiException;
@@ -13,9 +16,11 @@ import org.springframework.stereotype.Service;
 public class GitlabService {
 
     private final GitLabApi gitLabApi;
+    private final GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly;
 
-    public GitlabService(GitLabApi gitLabApi) {
+    public GitlabService(GitLabApi gitLabApi, GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly) {
         this.gitLabApi = gitLabApi;
+        this.gitlabIssueRepositoryReadOnly = gitlabIssueRepositoryReadOnly;
     }
 
     /**
@@ -78,5 +83,18 @@ public class GitlabService {
                 updatedAt,
                 dueDate
         );
+    }
+
+    public Optional<GitLabIssues> findByProjectIdAndIid(Long projectId, Long iid) {
+        return gitlabIssueRepositoryReadOnly.findByProjectIdAndIid(projectId, iid);
+    }
+
+    public Optional<GitLabIssues> getIssueStatusByTicketId(String ticketId) {
+
+        try {
+            return gitlabIssueRepositoryReadOnly.findByTicketId(ticketId);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

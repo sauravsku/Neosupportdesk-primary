@@ -4,7 +4,8 @@ public enum TicketRequestEnum {
 
     A("A", "All"),
     C("C", "Current Assignee"),
-    O("O", "Ticket Creator");
+    O("O", "Ticket Creator"),
+    F("F", "Follow Up");
 
     private final String value;
     private final String description;

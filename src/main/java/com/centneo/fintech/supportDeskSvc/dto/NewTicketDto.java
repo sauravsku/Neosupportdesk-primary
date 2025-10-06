@@ -15,7 +15,9 @@ public record NewTicketDto(
         String actionId,
         String priority,
         LocalDateTime loggedDatetime,
+
         String callLog,
+        String followUpComments,
 
         String currentAssignee,
         String currentAssigneeSL,
@@ -34,6 +36,6 @@ public record NewTicketDto(
         LocalDateTime slaDueDatetime,
         String escalationPath,
         String resolutionNote,
-        GitLabDto gitlab
-) {
-}
+        GitLabDto gitlab,
+        BranchInfoDto branchInfoDto
+) { }

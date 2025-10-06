@@ -61,7 +61,7 @@ public class SupportUserSyncService {
                 su.setUsername(userMetaDataDto.username());
                 su.setSupportLevel(userMetaDataDto.supportLevel());
                 su.setActive(true); // Default
-                su.setCapacity(7); // Default or configurable
+                su.setCapacity(15); // Default or configurable
                 if (su.getCurrentAssigned() == null) su.setCurrentAssigned(0);
                 supportUserRepository.save(su);
             } else {
@@ -70,7 +70,7 @@ public class SupportUserSyncService {
                 su.setUsername(userMetaDataDto.username());
                 su.setSupportLevel(userMetaDataDto.supportLevel());
                 su.setActive(true); // Default
-                su.setCapacity(7); // Default or configurable
+                su.setCapacity(15); // Default or configurable
                 if (su.getCurrentAssigned() == null) su.setCurrentAssigned(0);
                 supportUserRepository.save(su);
             }

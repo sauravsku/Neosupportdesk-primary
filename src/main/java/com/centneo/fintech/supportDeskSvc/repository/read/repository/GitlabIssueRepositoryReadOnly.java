@@ -11,4 +11,6 @@ public interface GitlabIssueRepositoryReadOnly extends GitlabIssueRepository {
     Optional<GitLabIssues> findByProjectIdAndIid(long projectId, long issueIid);
 
     List<GitLabIssues> findAllByIssueStatus(String issueStatus);
+
+    Optional<GitLabIssues> findByTicketId(String ticketId);
 }

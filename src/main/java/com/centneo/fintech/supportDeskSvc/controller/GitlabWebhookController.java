@@ -2,6 +2,7 @@ package com.centneo.fintech.supportDeskSvc.controller;
 
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.GitlabIssueRepository;
+import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
@@ -12,10 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/gitlab")
+@RequestMapping("gitlab")
 public class GitlabWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(GitlabWebhookController.class);
@@ -24,13 +26,15 @@ public class GitlabWebhookController {
     private final GitlabIssueRepository gitlabIssueRepository; // write repo
     private final GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly; // read-only repo
     private final String webhookSecret;
+    private final GitlabService gitlabService;
 
     public GitlabWebhookController(GitlabIssueRepository repo,
                                    GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly,
-                                   @Value("${gitlab.webhook-secret}") String webhookSecret) {
+                                   @Value("${gitlab.webhook-secret}") String webhookSecret, GitlabService gitlabService) {
         this.gitlabIssueRepository = repo;
         this.gitlabIssueRepositoryReadOnly = gitlabIssueRepositoryReadOnly;
         this.webhookSecret = webhookSecret;
+        this.gitlabService = gitlabService;
     }
 
     @PostMapping("/webhook")
@@ -135,6 +139,39 @@ public class GitlabWebhookController {
         } catch (Exception e) {
             log.warn("Failed to parse ISO date: {}", iso, e);
             return null;
+        }
+    }
+
+    @GetMapping("/issue-status")
+    public ResponseEntity<?> getIssueStatus(@RequestParam Long projectId, @RequestParam Long iid) {
+        try {
+            Optional<GitLabIssues> opt = gitlabIssueRepositoryReadOnly.findByProjectIdAndIid(projectId, iid);
+            if (opt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("success", false, "message", "GitLab issue not found"));
+            }
+            // return the entity (or map to DTO if you prefer)
+            return ResponseEntity.ok(opt.get());
+        } catch (Exception e) {
+            log.error("Error fetching gitlab issue", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", "Server error"));
+        }
+    }
+
+    @GetMapping("/issue-status-tid")
+    public ResponseEntity<?> getIssueStatusByTicketId(@RequestParam String ticketId) {
+        try {
+            Optional<GitLabIssues> opt = gitlabService.getIssueStatusByTicketId(ticketId);
+            if (opt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("success", false, "message", "GitLab issue not found"));
+            }
+            return ResponseEntity.ok(opt.get());
+        } catch (Exception e) {
+            log.error("Error fetching gitlab issue", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", "Server error"));
         }
     }
 }
