@@ -411,7 +411,6 @@ public class PreferenceService implements IPreference {
 
             if (quadCard == null || quadCard.isEmpty()) return false;
             return isFreshRenOptEnabled(quadCard.get().getMetaData());
-
         } catch (Exception e) {
             return false;
         }
