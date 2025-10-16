@@ -18,4 +18,7 @@ public interface PrimaryCardRepositoryReadOnly extends PrimaryCardRepository {
 
     @Query("SELECT p FROM PrimaryCard p WHERE pid=:pid")
     Optional<PrimaryCard> findByPid(@Param("pid") Long pid);
+
+    @Query("SELECT p FROM PrimaryCard p WHERE p.path=:path")
+    Optional<PrimaryCard> findByPath(String path);
 }

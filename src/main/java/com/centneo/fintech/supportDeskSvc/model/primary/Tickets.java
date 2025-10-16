@@ -23,6 +23,9 @@ public class Tickets extends BaseEntity {
     @Column(name = "SID", nullable = false)
     private String sid;
 
+    @Column(name = "TID", nullable = true)
+    private String tid;
+
     @Column(name = "ISSUE_TITLE", nullable = false)
     private String issueTitle;
 
@@ -104,7 +107,7 @@ public class Tickets extends BaseEntity {
     @PrePersist
     public void prePersist() {
         if (ticketId == null) {
-            String datePart = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+            String datePart = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String randomSuffix = UUID.randomUUID().toString().replaceAll("-", "")
                     .substring(0, 5).toUpperCase();
             this.ticketId = "CNSD_" + datePart + randomSuffix;

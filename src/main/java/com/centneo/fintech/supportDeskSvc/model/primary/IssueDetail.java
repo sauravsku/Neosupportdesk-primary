@@ -50,6 +50,16 @@ public class IssueDetail extends BaseEntity {
     @JsonBackReference
     private SecondaryCard secondaryCard;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tid", nullable = true)
+    @JsonBackReference
+    private TertiaryCard tertiaryCard;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "fid", nullable = true)
+    @JsonBackReference
+    private QuadCard quadCard;
+
     @OneToMany(mappedBy = "issueDetail", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<IssueSubDetail> issueSubDetails;

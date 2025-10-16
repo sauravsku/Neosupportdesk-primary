@@ -37,5 +37,5 @@ public record NewTicketDto(
         String escalationPath,
         String resolutionNote,
         GitLabDto gitlab,
-        BranchInfoDto branchInfoDto
+        BranchInfoDto branchInfo
 ) { }

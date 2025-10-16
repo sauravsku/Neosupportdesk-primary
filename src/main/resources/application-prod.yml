@@ -3,7 +3,7 @@ spring:
     read:
       url: jdbc:oracle:thin:@//10.1.8.209:1522/FINDB
       username: NEOSUPPORTDESK_PRIMARY
-      password: cnsd_primary_pw
+      password: cnsd_pwd01
       driver-class-name: oracle.jdbc.OracleDriver
       hikari:
         poolName: slavePool
@@ -21,7 +21,7 @@ spring:
     write:
       url: jdbc:oracle:thin:@//10.1.8.209:1522/FINDB
       username: NEOSUPPORTDESK_PRIMARY
-      password: cnsd_primary_pw
+      password: cnsd_pwd01
       driver-class-name: oracle.jdbc.OracleDriver
       hikari:
         poolName: masterPool

@@ -3,8 +3,6 @@ package com.centneo.fintech.supportDeskSvc.services.gitlab;
 import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.GitlabIssueRepository;
-import lombok.AllArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import org.gitlab4j.api.GitLabApi;
 import org.gitlab4j.api.models.Issue;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,7 +29,6 @@ public class GitlabPoller {
         List<GitLabIssues> open = gitlabIssueRepositoryReadOnly.findAllByIssueStatus("opened");
         for (GitLabIssues local : open) {
             try {
-
                 Issue remote = gitLabApi.getIssuesApi().getIssue(local.getProjectId(), local.getIid());
 
                 if (remote == null) {

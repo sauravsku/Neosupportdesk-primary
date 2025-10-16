@@ -38,6 +38,26 @@ public class DataInputController {
         }
     }
 
+    @PostMapping("tertiary")
+    public ResponseEntity<ResponseDto> setTertiaryData(@RequestBody TertiaryCardDto tertiaryCardDto) {
+
+        try {
+            return iDataInput.setTertiaryData(tertiaryCardDto);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @PostMapping("quad")
+    public ResponseEntity<ResponseDto> setQuadData(@RequestBody QuadCardDto quadCardDto) {
+
+        try {
+            return iDataInput.setQuadData(quadCardDto);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @PostMapping("issue-detail")
     public ResponseEntity<ResponseDto> setIssueData(@RequestBody List<IssueDetailDto> issueDetailDto) {
 

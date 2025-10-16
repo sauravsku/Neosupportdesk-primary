@@ -1,9 +1,6 @@
 package com.centneo.fintech.supportDeskSvc.services.ticketSvc;
 
-import com.centneo.fintech.supportDeskSvc.dto.NewTicketDto;
-import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
-import com.centneo.fintech.supportDeskSvc.dto.TicketActionDto;
-import com.centneo.fintech.supportDeskSvc.dto.TicketRequestDto;
+import com.centneo.fintech.supportDeskSvc.dto.*;
 import org.springframework.http.ResponseEntity;
 
 public interface ITicket {
@@ -13,4 +10,8 @@ public interface ITicket {
     ResponseEntity<ResponseDto> getTickets(TicketRequestDto ticketRequestDto);
 
     ResponseEntity<ResponseDto> updateTicketStatus(TicketActionDto ticketActionDto);
+
+    ResponseEntity<ResponseDto> getBranchInfo(String ticketId);
+
+    ResponseEntity<ResponseDto> getTicketsById(TicketRequestByIdDto ticketRequestByIdDto);
 }

@@ -10,7 +10,7 @@ public class AppCorsConfiguration implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("http://localhost:5173")
+                .allowedOrigins("http://localhost:5173")  //http://localhost:5173/  https://neosupportdesk.centralbank.bank.in
                 .allowCredentials(true)
                 .allowedHeaders("Authorization", "Content-Type", "X-CSRF-TOKEN","Accept")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")

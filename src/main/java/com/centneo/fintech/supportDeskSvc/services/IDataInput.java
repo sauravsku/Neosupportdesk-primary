@@ -22,4 +22,8 @@ public interface IDataInput {
     ResponseEntity<ResponseDto> getEscHistory(String username);
 
     ResponseEntity<ResponseDto> setBranchMasterData(List<BranchMasterDto>  branchMasterDtos);
+
+    ResponseEntity<ResponseDto> setTertiaryData(TertiaryCardDto tertiaryCardDto);
+
+    ResponseEntity<ResponseDto> setQuadData(QuadCardDto quadCardDto);
 }

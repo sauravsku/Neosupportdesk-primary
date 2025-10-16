@@ -5,6 +5,7 @@ import com.centneo.fintech.supportDeskSvc.dto.admin.BranchMasterDto;
 import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.PrimaryCardRepositoryReadOnly;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.QuadCardRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.*;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,9 @@ public class DataInputService implements IDataInput {
 
     private final PrimaryCardRepository primaryCardRepository;
     private final SecondaryCardRepository secondaryCardRepository;
+    private final TertiaryCardRepository tertiaryCardRepository;
+    private final QuadCardRepository quadCardRepository;
+    private final QuadCardRepositoryReadOnly quadCardRepositoryReadOnly;
     private final IssueDetailRepository issueDetailRepository;
     private final IssueSubDetailRepository issueSubDetailRepository;
     private final PrimaryCardRepositoryReadOnly primaryCardRepositoryReadOnly;
@@ -35,11 +39,14 @@ public class DataInputService implements IDataInput {
 
     public DataInputService(
             PrimaryCardRepository primaryCardRepository,
-            SecondaryCardRepository secondaryCardRepository,
+            SecondaryCardRepository secondaryCardRepository, TertiaryCardRepository tertiaryCardRepository, QuadCardRepository quadCardRepository, QuadCardRepositoryReadOnly quadCardRepositoryReadOnly,
             IssueDetailRepository issueDetailRepository,
             IssueSubDetailRepository issueSubDetailRepository, PrimaryCardRepositoryReadOnly primaryCardRepositoryReadOnly, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, ActionsRepository actionsRepository, BranchMasterRepository branchMasterRepository) {
         this.primaryCardRepository = primaryCardRepository;
         this.secondaryCardRepository = secondaryCardRepository;
+        this.tertiaryCardRepository = tertiaryCardRepository;
+        this.quadCardRepository = quadCardRepository;
+        this.quadCardRepositoryReadOnly = quadCardRepositoryReadOnly;
         this.issueDetailRepository = issueDetailRepository;
         this.issueSubDetailRepository = issueSubDetailRepository;
         this.primaryCardRepositoryReadOnly = primaryCardRepositoryReadOnly;
@@ -290,6 +297,56 @@ public class DataInputService implements IDataInput {
             responseDto.setMessage("Failed to save branch master");
             responseDto.setData(null);
             return ResponseEntity.status(HttpStatus.CONFLICT).body(responseDto);
+        }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> setTertiaryData(TertiaryCardDto tertiaryCardDto) {
+
+        TertiaryCard tertiaryCard = new TertiaryCard();
+        try {
+            tertiaryCard.setName(tertiaryCardDto.name());
+            tertiaryCard.setDescription(tertiaryCardDto.description());
+            tertiaryCard.setMetaData(tertiaryCardDto.metaData());
+            tertiaryCard.setSubCount(tertiaryCardDto.subCount());
+
+            if (tertiaryCardDto.secondaryCardId() != null) {
+                SecondaryCard secondaryCard = secondaryCardRepository.findById(tertiaryCardDto.secondaryCardId())
+                        .orElseThrow(() -> new RuntimeException("SecondaryCard details not found!!"));
+                tertiaryCard.setSecondaryCard(secondaryCard);
+            }
+
+            TertiaryCard savedCard = tertiaryCardRepository.save(tertiaryCard);
+
+            return ResponseEntity.ok(new ResponseDto(true, "Tertiary Card saved successfully", savedCard, 200));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseDto(false, "Error while saving Tertiary Card: " + e.getMessage(), null, 500));
+        }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> setQuadData(QuadCardDto quadCardDto) {
+
+        var quadCard = new QuadCard();
+        try {
+            quadCard.setName(quadCardDto.name());
+            quadCard.setDescription(quadCardDto.description());
+            quadCard.setMetaData(quadCardDto.metaData());
+            quadCard.setSubCount(quadCardDto.subCount());
+
+            if (quadCardDto.tertiaryCardId() != null) {
+                TertiaryCard tertiaryCard = tertiaryCardRepository.findById(quadCardDto.tertiaryCardId())
+                        .orElseThrow(() -> new RuntimeException("TertiaryCard details not found!!"));
+                quadCard.setTertiaryCard(tertiaryCard);
+            }
+
+            QuadCard savedCard = quadCardRepository.save(quadCard);
+
+            return ResponseEntity.ok(new ResponseDto(true, "Tertiary Card saved successfully", savedCard, 200));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseDto(false, "Error while saving Tertiary Card: " + e.getMessage(), null, 500));
         }
     }
 

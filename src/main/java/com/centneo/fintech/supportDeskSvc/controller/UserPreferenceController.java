@@ -1,6 +1,7 @@
 // com.centneo.fintech.supportDeskSvc.controller.UserPreferenceController.java
 package com.centneo.fintech.supportDeskSvc.controller;
 
+import com.centneo.fintech.supportDeskSvc.dto.HeaderDetailsDto;
 import com.centneo.fintech.supportDeskSvc.dto.JourneyDataDto;
 import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
 import com.centneo.fintech.supportDeskSvc.services.preference.IPreference;
@@ -47,6 +48,70 @@ public class UserPreferenceController {
         try {
             // Call service method that already returns ResponseEntity<ResponseDto>
             return preference.getSecondaryData(pid);
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Error fetching primary data: " + e.getMessage(),
+                    null,
+                    400
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    @PostMapping("/getHeaderDetails")
+    public ResponseEntity<ResponseDto> getHeaderDetails(@RequestBody HeaderDetailsDto headerDetailsDto) {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getHeaderDetails(headerDetailsDto);
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Error fetching primary data: " + e.getMessage(),
+                    null,
+                    400
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+
+    @GetMapping("/getTertiaryData")
+    public ResponseEntity<ResponseDto> getTertiaryData(@RequestParam("sid") Long sid) {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getTertiaryData(sid);
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Error fetching primary data: " + e.getMessage(),
+                    null,
+                    400
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+
+    @GetMapping("/getCardRules")
+    public Boolean getCardRules(@RequestParam("quadCardName") Long quadCardName) {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getCardRules(quadCardName);
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            return false;
+        }
+    }
+
+    @GetMapping("/getQuadData")
+    public ResponseEntity<ResponseDto> getQuadData(@RequestParam("tid") Long tid) {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getQuadData(tid);
         } catch (Exception e) {
             // Return a proper ResponseDto for errors
             ResponseDto errorResponse = new ResponseDto(

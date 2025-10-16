@@ -12,7 +12,7 @@ import java.util.List;
 @Entity
 @Getter
 @Setter
-@Table(name = "SECONDARY_CARD", schema = "CENTNEOSUPPORT")
+@Table(name = "SECONDARY_CARD")
 public class SecondaryCard extends BaseEntity {
 
     @Id

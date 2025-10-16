@@ -1,9 +1,6 @@
 package com.centneo.fintech.supportDeskSvc.controller;
 
-import com.centneo.fintech.supportDeskSvc.dto.NewTicketDto;
-import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
-import com.centneo.fintech.supportDeskSvc.dto.TicketActionDto;
-import com.centneo.fintech.supportDeskSvc.dto.TicketRequestDto;
+import com.centneo.fintech.supportDeskSvc.dto.*;
 import com.centneo.fintech.supportDeskSvc.services.ticketSvc.ITicket;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("ticket")
 @AllArgsConstructor
 public class TicketController {
-
 
     private final ITicket iTicket;
 
@@ -39,11 +35,31 @@ public class TicketController {
         }
     }
 
+    @PostMapping(value = "/get-ticket-by-id")
+    public ResponseEntity<ResponseDto> getTickets(@RequestBody TicketRequestByIdDto ticketRequestByIdDto) {
+
+        try {
+            return iTicket.getTicketsById(ticketRequestByIdDto);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @PostMapping("action")
     public ResponseEntity<ResponseDto> updateAction(@RequestBody TicketActionDto ticketActionDto) {
 
         try {
             return iTicket.updateTicketStatus(ticketActionDto);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @GetMapping("/get-branch-info")
+    public ResponseEntity<ResponseDto> getBranchInfo(@RequestParam("ticketId") String ticketId) {
+
+        try {
+            return iTicket.getBranchInfo(ticketId);
         } catch (Exception e) {
             return null;
         }

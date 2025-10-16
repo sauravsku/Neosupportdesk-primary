@@ -1,5 +1,6 @@
 package com.centneo.fintech.supportDeskSvc.services.preference;
 
+import com.centneo.fintech.supportDeskSvc.dto.HeaderDetailsDto;
 import com.centneo.fintech.supportDeskSvc.dto.JourneyDataDto;
 import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
 import org.springframework.http.ResponseEntity;
@@ -16,4 +17,12 @@ public interface IPreference {
     ResponseEntity<ResponseDto> getIssueDetailsData(Long sid);
 
     ResponseEntity<ResponseDto> getActionsData(Character mode);
+
+    ResponseEntity<ResponseDto> getTertiaryData(Long sid);
+
+    ResponseEntity<ResponseDto> getHeaderDetails(HeaderDetailsDto headerDetailsDto);
+
+    ResponseEntity<ResponseDto> getQuadData(Long tid);
+
+    Boolean getCardRules(Long quadCardName);
 }

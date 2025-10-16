@@ -1,0 +1,105 @@
+spring:
+  application:
+    name: CentNeoSupportDeskSvc
+  profiles:
+    active: prod  # Set active profile
+  mvc:
+    servlet:
+      path: /api/primary
+
+server:
+  port: 9002
+
+supportDeskAuthSvc:
+  base-url: https://neosupportdesk.centralbank.bank.in/api/identity
+
+gitlab:
+  token: glpat-z5YJoyyE8QGsdbpQu3LS
+  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
+  project-id: 1394
+  url: https://devsecops.centralbank.co.in
+
+  #https://gitlab.com
+
+# how often scheduler runs (ms)
+userSync:
+  scheduler:
+    delay-ms: 30000  #1HR
+
+assignee:
+  scheduler:
+    delay-ms: 30000  #30SECS
+    batch-size: 20 # how many pending tickets to process per level each run
+
+escalation:
+  scheduler:
+    delay-ms: 30000 #5Mins
+
+
+jwt:
+  public-key-file: classpath:keys/jwt_public_key.pem
+  issuer: centneo
+
+logging:
+  level:
+    org.springframework: INFO
+    com.centNeo: DEBUG
+    org.springframework.security: TRACE
+    org.springframework.ldap: TRACE
+    org.springframework.security.ldap: TRACE
+#    com.zaxxer.hikari: TRACE
+#    org.hibern
+
+
+
+spring:
+  application:
+    name: CentNeoSupportDeskSvc
+  profiles:
+    active: dev  # Set active profile
+  mvc:
+    servlet:
+      path: /api/primary
+
+server:
+  port: 9003
+
+supportDeskAuthSvc:
+  base-url: http://localhost:9002/api/identity
+
+gitlab:
+  token: glpat-z5YJoyyE8QGsdbpQu3LS
+  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
+  project-id: 1394
+  url: https://gitlab.com #https://devsecops.centralbank.co.in
+
+  #https://gitlab.com
+
+# how often scheduler runs (ms)
+userSync:
+  scheduler:
+    delay-ms: 30000  #1HR
+
+assignee:
+  scheduler:
+    delay-ms: 30000  #30SECS
+    batch-size: 20 # how many pending tickets to process per level each run
+
+escalation:
+  scheduler:
+    delay-ms: 30000 #5Mins
+
+
+jwt:
+  public-key-file: classpath:keys/jwt_public_key.pem
+  issuer: centneo
+
+logging:
+  level:
+    org.springframework: INFO
+    com.centNeo: DEBUG
+    org.springframework.security: TRACE
+    org.springframework.ldap: TRACE
+    org.springframework.security.ldap: TRACE
+#    com.zaxxer.hikari: TRACE
+#    org.hibern

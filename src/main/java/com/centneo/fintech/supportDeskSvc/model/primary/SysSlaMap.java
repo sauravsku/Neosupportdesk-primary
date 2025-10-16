@@ -8,7 +8,7 @@ import lombok.Setter;
 @Entity
 @Getter
 @Setter
-@Table(name = "CNSD_SLA_MAP", schema = "CENTNEOSUPPORT")
+@Table(name = "CNSD_SLA_MAP")
 public class SysSlaMap extends BaseEntity {
 
     @Id

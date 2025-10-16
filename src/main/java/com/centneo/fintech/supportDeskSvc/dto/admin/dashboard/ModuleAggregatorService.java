@@ -51,7 +51,7 @@ public class ModuleAggregatorService {
         }
 
         // ensure canonical order/keys present
-        List<String> canonicalOrder = Arrays.asList("new","open","assigned","in_progress","inprogress","escalated","resolved","closed","reopened","total");
+        List<String> canonicalOrder = Arrays.asList("new","open","assigned","in_progress","escalated","resolved","closed","reopened","total");
         Map<String,Integer> canonicalStageCounts = new LinkedHashMap<>();
         for (String k : canonicalOrder) {
             canonicalStageCounts.put(k, stageCounts.getOrDefault(k, 0));

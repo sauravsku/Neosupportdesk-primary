@@ -7,19 +7,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.centneo.fintech.supportDeskSvc.dto.NewTicketDto;
-import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
-import com.centneo.fintech.supportDeskSvc.dto.TicketActionDto;
-import com.centneo.fintech.supportDeskSvc.dto.TicketRequestDto;
+import com.centneo.fintech.supportDeskSvc.dto.*;
 import com.centneo.fintech.supportDeskSvc.enums.ActionsEnum;
 import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
 import com.centneo.fintech.supportDeskSvc.enums.TicketRequestEnum;
 import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
 import com.centneo.fintech.supportDeskSvc.events.DashboardUpdateEvent;
-import com.centneo.fintech.supportDeskSvc.model.primary.EscalationHistory;
-import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
-import com.centneo.fintech.supportDeskSvc.model.primary.SlaEscalationRule;
-import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
+import com.centneo.fintech.supportDeskSvc.model.primary.*;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.BranchMasterReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
@@ -51,6 +46,7 @@ public class TicketService implements ITicket {
     private final SlaRuleService slaRuleService;
     private final EscalationHistoryRepository escalationHistoryRepository;
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
+    private final BranchMasterReadOnly branchMasterReadOnly;
     private final ApplicationEventPublisher publisher;
     private final GitlabService gitlabService;
 
@@ -670,6 +666,62 @@ public class TicketService implements ITicket {
         }
     }
 
+    @Override
+    public ResponseEntity<ResponseDto> getBranchInfo(String ticketId) {
+
+        try {
+            Optional<Tickets> tickets = ticketRepositoryReadOnly.
+                    findById(ticketId);
+
+            if (tickets.isPresent()) {
+                String bc = tickets.get().getBranchCode();
+                if (bc != null) {
+                    BranchMaster branchMaster = branchMasterReadOnly.findByBrCo(Integer.parseInt(bc));
+                    ResponseDto ok = new ResponseDto(true, "Ticket escalated", branchMaster, 200);
+                    return ResponseEntity.ok(ok);
+                }
+            }
+        } catch (Exception e) {
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Failed to retrieve ticket: " + e.getMessage(),
+                    null,
+                    500
+            );
+            return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> getTicketsById(TicketRequestByIdDto ticketRequestByIdDto) {
+
+        try {
+            if (ticketRequestByIdDto == null || ticketRequestByIdDto.ticketId() == null) {
+                ResponseDto invalidResponse = new ResponseDto(
+                        false,
+                        "Ticket ID cannot be null.",
+                        null,
+                        404
+                );
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
+            }
+
+            Optional<Tickets> tickets = ticketRepositoryReadOnly.findById(ticketRequestByIdDto.ticketId());
+            ResponseDto ok = new ResponseDto(true, "1 Ticket found", tickets.get(), 200);
+            return ResponseEntity.ok(ok);
+
+        } catch (Exception e) {
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Failed to retrieve ticket: " + e.getMessage(),
+                    null,
+                    500
+            );
+            return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
+        }
+    }
+
     /**
      * Attempt to read common 'target level' accessor names from the DTO reflectively.
      * Returns first non-empty String found or null.
@@ -713,7 +765,7 @@ public class TicketService implements ITicket {
         ticket.setActionId(newTicketDto.actionId());
         ticket.setPriority(newTicketDto.priority());
         ticket.setLoggedDatetime(newTicketDto.loggedDatetime());
-        ticket.setBranchCode(newTicketDto.branchInfoDto().branchCode());
+        ticket.setBranchCode(newTicketDto.branchInfo().branchCode());
 
         if (ActionsEnum.GITLAB.getCode().toString().equals(ticket.getActionId())) {
             ticket.setCallLogDetails(newTicketDto.gitlab().description());
