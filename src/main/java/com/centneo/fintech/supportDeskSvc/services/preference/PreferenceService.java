@@ -238,6 +238,59 @@ public class PreferenceService implements IPreference {
         }
     }
 
+    @Override
+    public ResponseEntity<ResponseDto> getDlpIssueDetailsData(Long fid) {
+
+        try {
+            // Fetch primary card by id
+            Optional<QuadCard> quadCard = quadCardRepositoryReadOnly.findById(fid);
+
+            if (quadCard.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ResponseDto(
+                                false,
+                                "Secondary card details not found for id: " + fid,
+                                null,
+                                HttpStatus.NOT_FOUND.value()
+                        ));
+            }
+
+            // Fetch secondary cards for this primary id
+            List<IssueDetail> issueDetailList = issueDetailRepositoryReadOnly.findAllByQuadCard(quadCard.get());
+
+            // Remove issueDetails as not required
+            //issueDetailList.forEach(card -> card.setIssueSubDetails(null));
+
+            if (issueDetailList.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ResponseDto(
+                                false,
+                                "No quad cards were found for user's journey",
+                                null,
+                                HttpStatus.NOT_FOUND.value()
+                        ));
+            }
+
+            // Return success
+            return ResponseEntity.ok(
+                    new ResponseDto(
+                            true,
+                            "Issue Details data fetched successfully",
+                            issueDetailList,
+                            HttpStatus.OK.value()
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseDto(
+                            false,
+                            "Error fetching secondary data: " + e.getMessage(),
+                            null,
+                            HttpStatus.INTERNAL_SERVER_ERROR.value()
+                    ));
+        }
+    }
+
     public ResponseEntity<ResponseDto> getActionsData(Character mode) {
         try {
             if (mode == null) {
@@ -318,7 +371,7 @@ public class PreferenceService implements IPreference {
             List<TertiaryCard> tertiaryCardList = tertiaryCardRepositoryReadOnly.findAllBySecondaryCardSid(sid);
 
             // Remove issueDetails as not required
-            tertiaryCardList.forEach(card -> card.setIssueDetails(null));
+           // tertiaryCardList.forEach(card -> card.setIssueDetails(null));
 
             if (tertiaryCardList.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)

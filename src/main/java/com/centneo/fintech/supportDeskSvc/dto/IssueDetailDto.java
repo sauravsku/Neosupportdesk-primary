@@ -14,5 +14,8 @@ public record IssueDetailDto(
         String issueExt5,
         Long catId,
         List<IssueSubDetailDto> issueSubDetails,
-        Long sid
+        Long sid,
+        Long tid,
+        Long fid
+
 ) {}

@@ -35,11 +35,7 @@ public class TertiaryCard extends BaseEntity {
     @Column(name = "metadata")
     private String metaData;
 
-    @OneToMany(mappedBy = "tertiaryCard", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private List<IssueDetail> issueDetails;
-
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sid", nullable = false)
     @JsonBackReference
     private SecondaryCard secondaryCard;

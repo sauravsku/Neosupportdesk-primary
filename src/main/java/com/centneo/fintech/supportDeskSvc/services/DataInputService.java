@@ -150,6 +150,18 @@ public class DataInputService implements IDataInput {
                     issueDetail.setSecondaryCard(secondaryCard);
                 }
 
+                if (dto.tid() != null) {
+                    TertiaryCard tertiaryCard = tertiaryCardRepository.findById(dto.tid())
+                            .orElseThrow(() -> new RuntimeException("Tertiary Card not found for tid: " + dto.tid()));
+                    issueDetail.setTertiaryCard(tertiaryCard);
+                }
+
+                if (dto.sid() != null) {
+                    QuadCard quadCard = quadCardRepository.findById(dto.fid())
+                            .orElseThrow(() -> new RuntimeException("QuadCard not found for fid: " + dto.fid()));
+                    issueDetail.setQuadCard(quadCard);
+                }
+
                 IssueDetail saved = issueDetailRepository.save(issueDetail);
                 savedDetails.add(saved);
             }

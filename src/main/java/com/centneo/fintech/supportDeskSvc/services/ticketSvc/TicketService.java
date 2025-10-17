@@ -780,6 +780,10 @@ public class TicketService implements ITicket {
         ticket.setTicketRequester(newTicketDto.ticketRequester());
         ticket.setTicketRequesterSL(SupportLevelEnum.fromLabel(newTicketDto.ticketRequesterSL()).getCode());
 
+        if (newTicketDto.ckccRenewalValue() != null) {
+            ticket.setMetaData1(newTicketDto.ckccRenewalValue().toString()); //ckccRenewalValue
+        }
+
         ticket.setSid(newTicketDto.sid());
 
         if (newTicketDto.currentAssignee() != null && newTicketDto.currentAssignee().toLowerCase().contains("QUEUE".toLowerCase()))

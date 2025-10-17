@@ -35,11 +35,11 @@ public class QuadCard extends BaseEntity {
     @Column(name = "metadata")
     private String metaData;
 
-    @OneToMany(mappedBy = "quadCard", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "quadCard", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
     private List<IssueDetail> issueDetails;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tid", nullable = false)
     @JsonBackReference
     private TertiaryCard tertiaryCard;

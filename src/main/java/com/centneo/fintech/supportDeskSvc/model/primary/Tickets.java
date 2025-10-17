@@ -29,6 +29,15 @@ public class Tickets extends BaseEntity {
     @Column(name = "ISSUE_TITLE", nullable = false)
     private String issueTitle;
 
+    @Column(name = "METADATA1", nullable = true)
+    private String metaData1;
+
+    @Column(name = "METADATA2", nullable = true)
+    private String metaData2;
+
+    @Column(name = "METADATA3", nullable = true)
+    private String metaData3;
+
     @Column(name = "IP_PHONE_DET")
     private String ipPhoneDetails;
 

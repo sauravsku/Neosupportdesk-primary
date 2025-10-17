@@ -18,6 +18,7 @@ public record NewTicketDto(
 
         String callLog,
         String followUpComments,
+        Boolean ckccRenewalValue,
 
         String currentAssignee,
         String currentAssigneeSL,

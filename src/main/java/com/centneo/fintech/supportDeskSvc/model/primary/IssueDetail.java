@@ -55,7 +55,7 @@ public class IssueDetail extends BaseEntity {
     @JsonBackReference
     private TertiaryCard tertiaryCard;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "fid", nullable = true)
     @JsonBackReference
     private QuadCard quadCard;

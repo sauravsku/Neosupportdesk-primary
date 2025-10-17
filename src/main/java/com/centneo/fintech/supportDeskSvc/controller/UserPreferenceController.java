@@ -141,6 +141,23 @@ public class UserPreferenceController {
         }
     }
 
+    @GetMapping("/getDlpIssueDetailsData")
+    public ResponseEntity<ResponseDto> getDlpIssueDetailsData(@RequestParam("fid") Long fid) {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getDlpIssueDetailsData(fid);
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Error fetching primary data: " + e.getMessage(),
+                    null,
+                    400
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
     @GetMapping("getActionsData")
     public ResponseEntity<ResponseDto> getActionsData(@RequestParam("mode") Character mode) {
         try {

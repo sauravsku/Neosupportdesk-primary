@@ -25,4 +25,6 @@ public interface IPreference {
     ResponseEntity<ResponseDto> getQuadData(Long tid);
 
     Boolean getCardRules(Long quadCardName);
+
+    ResponseEntity<ResponseDto> getDlpIssueDetailsData(Long fid);
 }
