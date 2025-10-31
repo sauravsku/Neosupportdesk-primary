@@ -43,6 +43,23 @@ public class UserPreferenceController {
         }
     }
 
+    @GetMapping("/counts")
+    public ResponseEntity<ResponseDto> getDashboardCounts(@RequestParam("username") String username) {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getMenuCounts(username);
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Error fetching primary data: " + e.getMessage(),
+                    null,
+                    400
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
     @GetMapping("/getSecondaryData")
     public ResponseEntity<ResponseDto> getSecondaryData(@RequestParam("pid") Long pid) {
         try {

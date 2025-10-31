@@ -14,4 +14,8 @@ public interface ITicket {
     ResponseEntity<ResponseDto> getBranchInfo(String ticketId);
 
     ResponseEntity<ResponseDto> getTicketsById(TicketRequestByIdDto ticketRequestByIdDto);
+
+    ResponseEntity<ResponseDto> addComment(CommentCreateRequestDto req);
+
+    ResponseEntity<ResponseDto> getComments(String ticketId);
 }

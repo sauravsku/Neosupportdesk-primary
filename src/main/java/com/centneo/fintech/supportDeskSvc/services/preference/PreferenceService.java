@@ -5,6 +5,7 @@ import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.ActionsRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.PrimaryCardRepository;
+import com.centneo.fintech.supportDeskSvc.services.notification.AnalyticsService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,9 @@ public class PreferenceService implements IPreference {
 
     @Autowired
     private IssueDetailRepositoryReadOnly issueDetailRepositoryReadOnly;
+
+    @Autowired
+    private AnalyticsService analyticsService;
 
     @Autowired
     private PrimaryCardRepository primaryCardRepository;
@@ -288,6 +292,27 @@ public class PreferenceService implements IPreference {
                             null,
                             HttpStatus.INTERNAL_SERVER_ERROR.value()
                     ));
+        }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> getMenuCounts(String username) {
+
+        try {
+            MenuCountDto menuCountDto = analyticsService.syncData(username);
+
+            // Return success
+            return ResponseEntity.ok(
+                    new ResponseDto(
+                            true,
+                            "Issue Details data fetched successfully",
+                            menuCountDto,
+                            HttpStatus.OK.value()
+                    )
+            );
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

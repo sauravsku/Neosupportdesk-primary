@@ -3,12 +3,14 @@ package com.centneo.fintech.supportDeskSvc.services.businessRules.schedulers;
 import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
 import com.centneo.fintech.supportDeskSvc.model.primary.EscalationHistory;
 import com.centneo.fintech.supportDeskSvc.model.primary.SupportUser;
+import com.centneo.fintech.supportDeskSvc.model.primary.TicketDetails;
 import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.SupportUserRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.EscalationHistoryRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.SupportUserRepository;
+import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketDetailRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +28,7 @@ import java.util.Optional;
 public class AssigneeSchedulerService {
 
     private final TicketsRepository ticketsRepository;
+    private final TicketDetailRepository ticketDetailRepository;
     private final TicketRepositoryReadOnly ticketRepositoryReadOnly;
     private final SupportUserRepository supportUserRepository;
     private final SupportUserRepositoryReadOnly supportUserRepositoryReadOnly;
@@ -36,10 +39,11 @@ public class AssigneeSchedulerService {
     // configurable batch size per run
     private final int batchSize;
 
-    public AssigneeSchedulerService(TicketsRepository ticketsRepository, TicketRepositoryReadOnly ticketRepositoryReadOnly,
+    public AssigneeSchedulerService(TicketsRepository ticketsRepository, TicketDetailRepository ticketDetailRepository, TicketRepositoryReadOnly ticketRepositoryReadOnly,
                                     SupportUserRepository supportUserRepository, SupportUserRepositoryReadOnly supportUserRepositoryReadOnly, SupportUserSyncService supportUserSyncService, EscalationHistoryRepository escalationHistoryRepository, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly,
                                     @Value("${assignee.scheduler.batch-size:20}") int batchSize) {
         this.ticketsRepository = ticketsRepository;
+        this.ticketDetailRepository = ticketDetailRepository;
         this.ticketRepositoryReadOnly = ticketRepositoryReadOnly;
         this.supportUserRepository = supportUserRepository;
         this.supportUserRepositoryReadOnly = supportUserRepositoryReadOnly;
@@ -161,7 +165,19 @@ public class AssigneeSchedulerService {
 
         // persist both
         supportUserRepository.save(fresh);
-        ticketsRepository.save(ticket);
+        Tickets saved = ticketsRepository.save(ticket);
+        saveTicketAssigneeHistory(saved);
+    }
+
+    private void saveTicketAssigneeHistory(Tickets savedTicket) {
+
+        TicketDetails ticketDetails = new TicketDetails();
+        ticketDetails.setTicketId(savedTicket.getTicketId());
+        ticketDetails.setPrevAssignee(savedTicket.getTicketRequester());
+        ticketDetails.setPrevAssigneeSl(savedTicket.getTicketRequesterSL());
+        ticketDetails.setCurrAssignee(savedTicket.getCurrentAssignee());
+        ticketDetails.setCurrAssigneeSl(savedTicket.getCurrentAssigneeSL());
+        ticketDetailRepository.save(ticketDetails);
     }
 }
 

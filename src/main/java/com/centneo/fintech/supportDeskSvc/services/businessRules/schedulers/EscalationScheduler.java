@@ -3,8 +3,10 @@ package com.centneo.fintech.supportDeskSvc.services.businessRules.schedulers;
 import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
 import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
 import com.centneo.fintech.supportDeskSvc.model.primary.SlaEscalationRule;
+import com.centneo.fintech.supportDeskSvc.model.primary.TicketDetails;
 import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
+import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketDetailRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.IEscalationService;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
@@ -29,6 +31,7 @@ public class EscalationScheduler {
 
     private final TicketsRepository ticketsRepository;
     private final TicketRepositoryReadOnly ticketRepositoryReadOnly;
+    private final TicketDetailRepository ticketDetailRepository;
     private final TicketService ticketService;
     private final IEscalationService escalationService;;
     private final AssigneeSchedulerService assigneeSchedulerService;
@@ -58,7 +61,8 @@ public class EscalationScheduler {
 
                 // persist breached flag early to avoid duplicate processing by other schedulers
                 t.setBreachedFlag(true);
-                ticketsRepository.save(t);
+                Tickets saved = ticketsRepository.save(t);
+                saveTicketAssigneeHistory(saved);
 
                 // Determine escalation path: first from ticket, else from SLA rule
                 String escalationPath = t.getEscalationPath();
@@ -110,5 +114,16 @@ public class EscalationScheduler {
                 log.error("EscalationScheduler: unexpected error handling ticket {}: {}", t.getTicketId(), ex.getMessage(), ex);
             }
         }
+    }
+
+    private void saveTicketAssigneeHistory(Tickets savedTicket) {
+
+        TicketDetails ticketDetails = new TicketDetails();
+        ticketDetails.setTicketId(savedTicket.getTicketId());
+        ticketDetails.setPrevAssignee(savedTicket.getTicketRequester());
+        ticketDetails.setPrevAssigneeSl(savedTicket.getTicketRequesterSL());
+        ticketDetails.setCurrAssignee(savedTicket.getCurrentAssignee());
+        ticketDetails.setCurrAssigneeSl(savedTicket.getCurrentAssigneeSL());
+        ticketDetailRepository.save(ticketDetails);
     }
 }

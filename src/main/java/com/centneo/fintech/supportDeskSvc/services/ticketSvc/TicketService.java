@@ -14,13 +14,8 @@ import com.centneo.fintech.supportDeskSvc.enums.TicketRequestEnum;
 import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
 import com.centneo.fintech.supportDeskSvc.events.DashboardUpdateEvent;
 import com.centneo.fintech.supportDeskSvc.model.primary.*;
-import com.centneo.fintech.supportDeskSvc.repository.read.repository.BranchMasterReadOnly;
-import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
-import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
-import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
-import com.centneo.fintech.supportDeskSvc.repository.write.repository.EscalationHistoryRepository;
-import com.centneo.fintech.supportDeskSvc.repository.write.repository.GitlabIssueRepository;
-import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
+import com.centneo.fintech.supportDeskSvc.repository.write.repository.*;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
 
 import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabService;
@@ -41,11 +36,19 @@ public class TicketService implements ITicket {
 
     private final TicketsRepository ticketsRepository;
     private final TicketRepositoryReadOnly ticketRepositoryReadOnly;
+    private final TicketDetailRepository ticketDetailRepository;
+    private final TicketDetailRepositoryReadOnly ticketDetailRepositoryReadOnly;
     private final GitlabIssueRepository gitlabIssueRepository;
+    private final SecondaryCardRepositoryReadOnly secondaryCardRepositoryReadOnly;
+    private final GitlabAssigneeRepositoryReadOnly gitlabAssigneeRepositoryReadOnly;
     private final GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly;
+    private final IssueDetailRepositoryReadOnly issueDetailRepositoryReadOnly;
+    private final IssueSubDetailRepositoryReadOnly issueSubDetailRepositoryReadOnly;
     private final SlaRuleService slaRuleService;
     private final EscalationHistoryRepository escalationHistoryRepository;
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
+    private final TicketCommentRepository ticketCommentRepository;
+    private final TicketCommentRepositoryReadOnly ticketCommentRepositoryReadOnly;
     private final BranchMasterReadOnly branchMasterReadOnly;
     private final ApplicationEventPublisher publisher;
     private final GitlabService gitlabService;
@@ -53,7 +56,9 @@ public class TicketService implements ITicket {
     @Value("${gitlab.project-id}")
     private String projectId;
 
-    /** Create ticket: derive initial assignee level + SLA from rules */
+    /**
+     * Create ticket: derive initial assignee level + SLA from rules
+     */
     @Override
     @Transactional
     public ResponseEntity<ResponseDto> createNewTicket(NewTicketDto newTicketDto) {
@@ -61,21 +66,21 @@ public class TicketService implements ITicket {
         try {
             Tickets ticket = getTickets(newTicketDto);
 
-            // fallbacks
+            // fallbacks.
             String priority = ticket.getPriority() != null ? ticket.getPriority() : "MEDIUM";
             String createdByLevel = ticket.getTicketRequesterSL() != null ? ticket.getTicketRequesterSL() : SupportLevelEnum.L1.getCode();
 
-            // resolve SLA rule
+            // resolve SLA rule.
             SlaEscalationRule rule = slaRuleService.resolveInitialRule(priority, createdByLevel).get();
 
-            // set SLA and routing
+            // set SLA and routing.
             ticket.setEscalationPath(rule.getEscalationPath());
             ticket.setCurrentEscLevel(rule.getInitialAssigneeLevel());
             ticket.setSlaDays(rule.getSlaDays());
             ticket.setSlaDueDatetime(LocalDateTime.now().plusDays(rule.getSlaDays()));
             ticket.setCurrTat(rule.getSlaDays().longValue());
 
-            // set initial status using enum
+            // set initial status using enum.
             if (ticket.getCurrentAssignee() != null && ticket.getCurrentAssignee().toLowerCase().contains("queue")) {
                 ticket.setCurrStatus(TicketStatusEnum.NEW.getCode());
             } else {
@@ -83,6 +88,9 @@ public class TicketService implements ITicket {
             }
 
             Tickets savedTicket = ticketsRepository.save(ticket);
+
+            //set ticket assignees history
+            saveTicketAssigneeHistory(savedTicket);
 
             Integer actionId = Integer.parseInt(savedTicket.getActionId());
             if (ActionsEnum.fromCode(actionId) == ActionsEnum.GITLAB) {
@@ -96,7 +104,7 @@ public class TicketService implements ITicket {
                     gitLabIssue.setIssueLabel(newTicketDto.gitlab().label());
                     gitLabIssue.setIssueDescription(newTicketDto.gitlab().description());
 
-                    // Build labels safely (skip null/blank values)
+                    // Build labels safely (skip null/blank values).
                     String labels = Stream.of(
                                     gitLabIssue.getIssueLabel(),
                                     gitLabIssue.getIssueType(),
@@ -128,11 +136,12 @@ public class TicketService implements ITicket {
 
                     try {
                         // create remote issue (assignee IDs: replace list with real IDs as needed)
+                        List<Long> assignees = gitlabAssigneeHandler(Long.parseLong(ticket.getSid()));
                         Issue remote = gitlabService.createIssue(
                                 projectIdOrPath,
                                 gitLabIssue.getIssueTitle(),
                                 gitLabIssue.getIssueDescription(),
-                                List.of(8571572L),
+                                assignees,
                                 labels,
                                 createdAt,
                                 dueDate
@@ -142,7 +151,7 @@ public class TicketService implements ITicket {
                             throw new IllegalStateException("GitLab API returned null when creating issue");
                         }
 
-                        // Map remote metadata back to local entity
+                        // Map remote metadata back to local entity.
                         Integer remoteProjectIdInt = Math.toIntExact(remote.getProjectId());
                         if (remoteProjectIdInt != null) gitLabIssue.setProjectId(remoteProjectIdInt.longValue());
                         else if (projectIdOrPath instanceof Long) gitLabIssue.setProjectId((Long) projectIdOrPath);
@@ -166,13 +175,13 @@ public class TicketService implements ITicket {
                         gitlabIssueRepository.save(gitLabIssue);
 
                     } catch (Exception ex) {
-                      //  log.error("Failed to create GitLab issue for ticket {}: {}", savedTicket.getTicketId(), ex.getMessage(), ex);
+                        //  log.error("Failed to create GitLab issue for ticket {}: {}", savedTicket.getTicketId(), ex.getMessage(), ex);
                         // fail the request so caller knows; transaction will roll back if you prefer
                         throw ex;
                     }
                 } else {
                     // missing gitlab DTO — ignore or handle as needed
-                   // log.warn("Ticket {} requested GitLab action but no gitlab payload provided", savedTicket.getTicketId());
+                    // log.warn("Ticket {} requested GitLab action but no gitlab payload provided", savedTicket.getTicketId());
                 }
             }
 
@@ -198,6 +207,22 @@ public class TicketService implements ITicket {
         }
     }
 
+    private List<Long> gitlabAssigneeHandler(Long sid) {
+
+        List<GitlabAssignee> gitlabAssignee =
+                gitlabAssigneeRepositoryReadOnly.findByPid(fetchPidBySid(sid));
+
+        List<Long> assignees = gitlabAssignee.stream()
+                .map(GitlabAssignee::getAssigneeId)
+                .map(Long::valueOf)           // avoids ambiguity
+                .collect(Collectors.toList());
+
+        return assignees;
+    }
+
+    private Long fetchPidBySid(Long sid) {
+        return secondaryCardRepositoryReadOnly.findById(sid).get().getPrimaryCard().getPid();
+    }
 
 
     @Transactional
@@ -223,7 +248,6 @@ public class TicketService implements ITicket {
         // resolve SLA days for the bumped priority at next support level
         Integer nextSlaDays = slaRuleService.resolveSlaDaysFor(bumpedPriority, next.getCode());
         if (nextSlaDays == null) nextSlaDays = t.getSlaDays() != null ? t.getSlaDays() : 1; // fallback
-
 
 
         // apply escalation changes to ticket
@@ -280,6 +304,7 @@ public class TicketService implements ITicket {
             escalationHistoryRepository.save(hist);
         }
         Tickets saved = ticketsRepository.save(t);
+        saveTicketAssigneeHistory(saved);
 
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "resolved")));
@@ -304,7 +329,9 @@ public class TicketService implements ITicket {
     }
 
 
-    /** Helper to bump a priority one level. Adjust names if you use different priority constants. */
+    /**
+     * Helper to bump a priority one level. Adjust names if you use different priority constants.
+     */
     private String bumpPriorityOneLevel(String currentPriority) {
         if (currentPriority == null) return "MEDIUM";
         final String p = currentPriority.trim().toUpperCase();
@@ -370,7 +397,9 @@ public class TicketService implements ITicket {
         String path = t.getEscalationPath() == null ? "" : t.getEscalationPath();
         t.setEscalationPath(path + (path.isEmpty() ? "" : " -> ") + "Escalated to " + target + " on " + now);
 
-        return ticketsRepository.save(t);
+        Tickets savedTicket = ticketsRepository.save(t);
+        saveTicketAssigneeHistory(savedTicket);
+        return savedTicket;
     }
 
     @Override
@@ -466,6 +495,7 @@ public class TicketService implements ITicket {
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
             }
 
+            List<Tickets> filteredTicketByIssues = ticketHandler(tickets);
             ResponseDto response = new ResponseDto(
                     true,
                     message,
@@ -485,17 +515,33 @@ public class TicketService implements ITicket {
         }
     }
 
+    private List<Tickets> ticketHandler(List<Tickets> tickets) {
+
+        for (Tickets ticket : tickets) {
+
+            Optional<IssueDetail> issueDetail = issueDetailRepositoryReadOnly.
+                    findById(Long.parseLong(ticket.getIssueId()));
+            Optional<IssueSubDetail> issueSubDetail = issueSubDetailRepositoryReadOnly.
+                    findById(Long.parseLong(ticket.getIssueSubTypeId()));
+            ticket.setIssueId(issueDetail.get().getIssueName());
+            ticket.setIssueSubTypeId(issueSubDetail.get().getIssueName());
+        }
+        return tickets;
+    }
+
     // ------------ new action implementations ------------
 
     /**
      * Mark ticket In Progress and optionally append an in-progress message.
-     *
      */
     @Transactional
     public Tickets inProgress(String ticketId, String message) {
         Tickets t = ticketRepositoryReadOnly.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found: " + ticketId));
 
+//        if (t.getCurrStatus().equalsIgnoreCase(TicketStatusEnum.REFERRED_BACK.getLabel())) {
+//
+//        }
         t.setCurrStatus(TicketStatusEnum.IN_PROGRESS.getCode());
 
         if (message != null && !message.isBlank()) {
@@ -504,11 +550,23 @@ public class TicketService implements ITicket {
         }
         t.recalcTat();
         Tickets saved = ticketsRepository.save(t);
+        saveTicketAssigneeHistory(saved);
 
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "in-progress")));
 
         return saved;
+    }
+
+    private void saveTicketAssigneeHistory(Tickets savedTicket) {
+
+        TicketDetails ticketDetails = new TicketDetails();
+        ticketDetails.setTicketId(savedTicket.getTicketId());
+        ticketDetails.setPrevAssignee(savedTicket.getTicketRequester());
+        ticketDetails.setPrevAssigneeSl(savedTicket.getTicketRequesterSL());
+        ticketDetails.setCurrAssignee(savedTicket.getCurrentAssignee());
+        ticketDetails.setCurrAssigneeSl(savedTicket.getCurrentAssigneeSL());
+        ticketDetailRepository.save(ticketDetails);
     }
 
     /**
@@ -557,6 +615,7 @@ public class TicketService implements ITicket {
         t.recalcTat();
 
         Tickets saved = ticketsRepository.save(t);
+        saveTicketAssigneeHistory(saved);
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "resolved")));
 
@@ -591,6 +650,7 @@ public class TicketService implements ITicket {
         t.recalcTat();
 
         Tickets saved = ticketsRepository.save(t);
+        saveTicketAssigneeHistory(saved);
 
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "closed")));
@@ -646,6 +706,26 @@ public class TicketService implements ITicket {
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
                     return ResponseEntity.ok(ok);
                 }
+                case "refer-back": {
+                    Tickets updated;
+                    if (targetLevel != null && !targetLevel.isBlank()) {
+                        updated = referBack(ticketId, message);
+                    } else {
+                        updated = referBack(ticketId, message);
+                    }
+                    ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
+                    return ResponseEntity.ok(ok);
+                }
+                case "re-assign": {
+                    Tickets updated;
+                    if (targetLevel != null && !targetLevel.isBlank()) {
+                        updated = reAssignTicket(ticketId, message);
+                    } else {
+                        updated = reAssignTicket(ticketId, message);
+                    }
+                    ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
+                    return ResponseEntity.ok(ok);
+                }
                 default: {
                     ResponseDto unknown = new ResponseDto(false, "Unknown action: " + ticketActionDto.action(), null, 400);
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(unknown);
@@ -664,6 +744,89 @@ public class TicketService implements ITicket {
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
+    }
+
+    private Tickets referBack(String ticketId, String message) {
+
+        try {
+            Optional<Tickets> ticket = ticketRepositoryReadOnly.findById(ticketId);
+            List<TicketDetails> ticketDetails =
+                    ticketDetailRepositoryReadOnly.findByTicketId(ticketId);
+
+            if (ticketDetails.isEmpty())
+                return null;
+
+            if (ticketDetails.size() == 1) {
+                Tickets updateAssignee = ticket.get();
+                TicketDetails singleEntry = ticketDetails.get(0);
+                updateAssignee.setReferBackComments(message);
+                updateAssignee.setIsReferredBack(true);
+                updateAssignee.setCurrentAssignee(singleEntry.getPrevAssignee());
+                updateAssignee.setCurrentAssigneeSL(singleEntry.getPrevAssigneeSl());
+                updateAssignee.setCurrStatus(TicketStatusEnum.REFERRED_BACK.getLabel());
+                ticketsRepository.save(updateAssignee);
+                saveTicketAssigneeHistory(updateAssignee);
+            } else {
+                Tickets updateAssignee = ticket.get();
+                Optional<TicketDetails> singleEntry = ticketDetails.stream()
+                        .sorted(Comparator.comparing(TicketDetails::getCreatedAt))
+                        .skip(Math.max(0, ticketDetails.size() - 2))
+                        .findFirst();
+                updateAssignee.setReferBackComments(message);
+                updateAssignee.setIsReferredBack(true);
+                updateAssignee.setCurrentAssignee(singleEntry.get().getPrevAssignee());
+                updateAssignee.setCurrentAssigneeSL(singleEntry.get().getPrevAssigneeSl());
+                updateAssignee.setCurrStatus(TicketStatusEnum.REFERRED_BACK.getLabel());
+                ticketsRepository.save(updateAssignee);
+                saveTicketAssigneeHistory(updateAssignee);
+            }
+            return ticket.get();
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private Tickets reAssignTicket(String ticketId, String message) {
+
+        Optional<Tickets> ticket = ticketRepositoryReadOnly.findById(ticketId);
+        try {
+
+
+            if (ticket.isPresent()) {
+                List<TicketDetails> ticketDetails =
+                        ticketDetailRepositoryReadOnly.findByTicketId(ticketId);
+
+                if (ticketDetails.isEmpty())
+                    return null;
+
+                //fetch second last record.
+
+                Optional<TicketDetails> ticketHistory = Optional.ofNullable(ticketDetails)
+                        .orElseGet(Collections::emptyList)
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .sorted(Comparator.comparing(
+                                TicketDetails::getCreatedBy,                          // <-- change getter if needed
+                                Comparator.nullsLast(Comparator.naturalOrder())      // place null timestamps last
+                        ))
+                        .collect(Collectors.collectingAndThen(Collectors.toList(), list ->
+                                list.size() >= 2 ? Optional.of(list.get(list.size() - 2)) : Optional.empty()
+                        ));
+
+                //Now re-assigning the previous one.
+                ticket.get().setCurrentAssignee(ticketHistory.get().getCurrAssignee());
+                ticket.get().setCurrentAssigneeSL(ticketHistory.get().getCurrAssigneeSl());
+                ticket.get().setCurrStatus(TicketStatusEnum.REASSIGNED.getLabel());
+                ticket.get().recalcTat();
+
+                Tickets savedTicket = ticketsRepository.save(ticket.get());
+                saveTicketAssigneeHistory(savedTicket);
+                return savedTicket;
+            }
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+        return ticket.get();
     }
 
     @Override
@@ -720,6 +883,63 @@ public class TicketService implements ITicket {
             );
             return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
         }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> addComment(CommentCreateRequestDto req) {
+
+        try {
+           TicketComments ticketComments = new TicketComments();
+           Optional<Tickets> ticket = ticketRepositoryReadOnly.findById(req.ticketId());
+           ticketComments.setTicket(ticket.get());
+           ticketComments.setComment(req.comment());
+           ticketComments.setAuthorId(req.author());
+           ticketComments.setAuthorRole(req.authorRole());
+           ticketComments.setInternal(req.internal() != null && req.internal());
+            if (req.parentId() != null) {
+               Optional<TicketComments> ticketComments1 =  ticketCommentRepositoryReadOnly.findById(req.parentId());
+               if (ticketComments1.isPresent())
+                   ticketComments.setParent(ticketComments1.get());
+            }
+            TicketComments savedComment = ticketCommentRepository.save(ticketComments);
+            ResponseDto ok = new ResponseDto(true, "Comments added successfully", savedComment, 200);
+            return ResponseEntity.ok(ok);
+        } catch (Exception e) {
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Failed to add comments: " + e.getMessage(),
+                    null,
+                    500
+            );
+            return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
+        }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> getComments(String ticketId) {
+
+      try {
+         List<CommentResponseDto> commentResponseDtos  = ticketCommentRepositoryReadOnly
+                .findByTicketTicketIdOrderByCreatedAtAsc(ticketId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+          ResponseDto ok = new ResponseDto(true, "Comments fetched successfully", commentResponseDtos, 200);
+          return ResponseEntity.ok(ok);
+        } catch (Exception e) {
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Failed to retrieve comments: " + e.getMessage(),
+                    null,
+                    500
+            );
+            return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
+        }
+    }
+
+    private CommentResponseDto toResponse(TicketComments c) {
+        Long parentId = c.getParent() == null ? null : c.getParent().getId();
+        return new CommentResponseDto(c.getId(), c.getTicket().getTicketId(), c.getAuthorId(),c.getAuthorId(),
+                c.getAuthorRole(), c.getComment(), c.getInternal(), c.getCreatedAt(), c.getUpdatedAt(), parentId);
     }
 
     /**

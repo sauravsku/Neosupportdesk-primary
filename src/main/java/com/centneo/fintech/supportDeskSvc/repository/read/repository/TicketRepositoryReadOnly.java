@@ -40,4 +40,8 @@ public interface TicketRepositoryReadOnly extends TicketsRepository {
     List<Tickets> findBySidAndTicketRequester(String string, String username);
 
     List<Tickets> findByCurrentAssigneeAndActionId(String username, String actionId);
+
+
+
+
 }

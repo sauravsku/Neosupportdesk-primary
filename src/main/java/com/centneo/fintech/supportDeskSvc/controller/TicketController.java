@@ -4,6 +4,7 @@ import com.centneo.fintech.supportDeskSvc.dto.*;
 import com.centneo.fintech.supportDeskSvc.services.ticketSvc.ITicket;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -60,6 +61,26 @@ public class TicketController {
 
         try {
             return iTicket.getBranchInfo(ticketId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @PostMapping("/add-comments")
+    public ResponseEntity<ResponseDto> addComment(@RequestBody CommentCreateRequestDto req) {
+        // ensure req.ticketId matches path variable (or set it)
+        try {
+            return iTicket.addComment(req);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @GetMapping("/get-comments")
+    public ResponseEntity<ResponseDto> getComments(@RequestParam("ticketId") String ticketId) {
+        // ensure req.ticketId matches path variable (or set it)
+        try {
+            return iTicket.getComments(ticketId);
         } catch (Exception e) {
             return null;
         }

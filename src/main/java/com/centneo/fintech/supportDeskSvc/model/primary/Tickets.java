@@ -1,6 +1,7 @@
 package com.centneo.fintech.supportDeskSvc.model.primary;
 
 import com.centneo.fintech.supportDeskSvc.model.BaseEntity;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -8,6 +9,8 @@ import lombok.Setter;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -37,6 +40,12 @@ public class Tickets extends BaseEntity {
 
     @Column(name = "METADATA3", nullable = true)
     private String metaData3;
+
+    @Column(name = "isReferredBack", nullable = true)
+    private Boolean isReferredBack;
+
+    @Column(name = "refer_back_comment", nullable = true)
+    private String referBackComments;
 
     @Column(name = "IP_PHONE_DET")
     private String ipPhoneDetails;
@@ -112,6 +121,11 @@ public class Tickets extends BaseEntity {
     @Version
     @Column(name = "VERSION")
     private Long version;
+
+    @OneToMany(mappedBy = "ticket", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt ASC")
+    @JsonManagedReference
+    private List<TicketComments> comments = new ArrayList<>();
 
     @PrePersist
     public void prePersist() {

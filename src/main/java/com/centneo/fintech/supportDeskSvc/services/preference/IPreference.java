@@ -27,4 +27,6 @@ public interface IPreference {
     Boolean getCardRules(Long quadCardName);
 
     ResponseEntity<ResponseDto> getDlpIssueDetailsData(Long fid);
+
+    ResponseEntity<ResponseDto> getMenuCounts(String username);
 }

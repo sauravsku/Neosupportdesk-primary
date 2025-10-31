@@ -4,6 +4,8 @@ public enum TicketStatusEnum {
 
     NEW("NEW", "New Ticket"),
     ASSIGNED("ASSIGNED", "Assigned to Agent"),
+    REFERRED_BACK("REFERRED_BACK", "Referred back"),
+    REASSIGNED("RE-ASSIGNED", "Re-Assigned"),
     IN_PROGRESS("IN-PROGRESS", "Work in Progress"),
     ESCALATED("ESCALATED","Escalated"),
     CRITICAL("ON_HOLD", "On Hold"),
