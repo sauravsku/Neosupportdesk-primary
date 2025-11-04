@@ -38,5 +38,10 @@ public record NewTicketDto(
         String escalationPath,
         String resolutionNote,
         GitLabDto gitlab,
-        BranchInfoDto branchInfo
+        BranchInfoDto branchInfo,
+
+        String department,
+        String module,
+        String product,
+        String subProduct
 ) { }

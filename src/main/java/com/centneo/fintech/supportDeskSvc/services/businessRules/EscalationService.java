@@ -1,10 +1,12 @@
 package com.centneo.fintech.supportDeskSvc.services.businessRules;
 
+import com.centneo.fintech.supportDeskSvc.enums.NotificationTypeEnum;
 import com.centneo.fintech.supportDeskSvc.model.primary.EscalationHistory;
 import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.EscalationHistoryRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
+import com.centneo.fintech.supportDeskSvc.services.notification.NotificationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ public class EscalationService implements IEscalationService {
     private final EscalationHistoryRepository escalationHistoryRepository;
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
     private final TicketsRepository ticketsRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -73,7 +76,29 @@ public class EscalationService implements IEscalationService {
                     ? (fromLevel + "->" + toLevel)
                     : (prevPath + " -> " + fromLevel + "->" + toLevel);
             ticket.setEscalationPath(appended);
-            ticketsRepository.save(ticket);
+            Tickets saved = ticketsRepository.save(ticket);
+
+            String title = "Ticket Escalated: " + saved.getTicketId();
+            String body = String.format(
+                    "Ticket #%s has been escalated from %s to %s by %s.%nReason: %s%nNew SLA Due: %s",
+                    ticket.getTicketId(),
+                    fromLevel,
+                    toLevel,
+                    escalatedBy,
+                    escalationReason,
+                    hist.getSlaDueDatetime()
+            );
+
+            // create notification
+            notificationService.createNotification(
+                    NotificationTypeEnum.ESCALATIONS.getDescription(),
+                    title,
+                    body,
+                    ticket.getTicketRequester()
+            );
+
+
+
         } catch (Exception e) {
             log.warn("Failed to update ticket escalation fields for {}: {}", ticketId, e.getMessage(), e);
         }

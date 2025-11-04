@@ -8,15 +8,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.centneo.fintech.supportDeskSvc.dto.*;
-import com.centneo.fintech.supportDeskSvc.enums.ActionsEnum;
-import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
-import com.centneo.fintech.supportDeskSvc.enums.TicketRequestEnum;
-import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
+import com.centneo.fintech.supportDeskSvc.enums.*;
 import com.centneo.fintech.supportDeskSvc.events.DashboardUpdateEvent;
 import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.*;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
+import com.centneo.fintech.supportDeskSvc.services.notification.NotificationService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 
 import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabService;
 import jakarta.persistence.Column;
@@ -52,6 +53,7 @@ public class TicketService implements ITicket {
     private final BranchMasterReadOnly branchMasterReadOnly;
     private final ApplicationEventPublisher publisher;
     private final GitlabService gitlabService;
+    private final NotificationService notificationService;
 
     @Value("${gitlab.project-id}")
     private String projectId;
@@ -270,9 +272,10 @@ public class TicketService implements ITicket {
 
         Optional<EscalationHistory> escalationHistory = escalationHistoryRepositoryReadOnly.findByTicketId(ticketId);
 
+        EscalationHistory hist = new EscalationHistory();
         if (escalationHistory.isPresent()) {
             // create history record and persist
-            EscalationHistory hist = escalationHistory.get();
+            hist = escalationHistory.get();
             hist.setFromLevel(currentLevel);
             hist.setToLevel(next.getCode());
             hist.setAssigneeBefore(assigneeBefore);
@@ -287,7 +290,7 @@ public class TicketService implements ITicket {
             escalationHistoryRepository.save(hist);
         } else {
             // create history record and persist
-            EscalationHistory hist = new EscalationHistory();
+            hist = new EscalationHistory();
             hist.setTicketId(ticketId);
             hist.setFromLevel(currentLevel);
             hist.setToLevel(next.getCode());
@@ -309,7 +312,31 @@ public class TicketService implements ITicket {
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "resolved")));
 
+        createNotification(saved, hist);
+
         return saved;
+    }
+
+    private void createNotification(Tickets ticket, EscalationHistory hist) {
+        String title = "Ticket Escalated: " + ticket.getTicketId();
+        String body = String.format(
+                "Ticket #%s has been escalated from %s to %s by %s.%nReason: %s%nNew SLA Due: %s",
+                ticket.getTicketId(),
+                hist.getFromLevel(),
+                hist.getToLevel(),
+                hist.getEscalatedBy(),
+                hist.getNote(),
+                hist.getSlaDueDatetime()
+        );
+
+        // create notification
+        notificationService.createNotification(
+                NotificationTypeEnum.ESCALATIONS.getDescription(),
+                title,
+                body,
+                ticket.getTicketRequester()
+        );
+
     }
 
     private String resolveCurrentAssignee(String code) {
@@ -974,7 +1001,7 @@ public class TicketService implements ITicket {
         return null;
     }
 
-    private static Tickets getTickets(NewTicketDto newTicketDto) {
+    private static Tickets getTickets(NewTicketDto newTicketDto) throws JsonProcessingException {
 
         Tickets ticket = new Tickets();
         ticket.setIssueTitle(newTicketDto.issueTitle());
@@ -1004,6 +1031,8 @@ public class TicketService implements ITicket {
             ticket.setMetaData1(newTicketDto.ckccRenewalValue().toString()); //ckccRenewalValue
         }
 
+        setMetaData2(newTicketDto, ticket);
+
         ticket.setSid(newTicketDto.sid());
 
         if (newTicketDto.currentAssignee() != null && newTicketDto.currentAssignee().toLowerCase().contains("QUEUE".toLowerCase()))
@@ -1011,5 +1040,19 @@ public class TicketService implements ITicket {
         else
             ticket.setCurrStatus(TicketStatusEnum.ASSIGNED.getCode());
         return ticket;
+    }
+
+    private static void setMetaData2(NewTicketDto newTicketDto, Tickets ticket) throws JsonProcessingException {
+
+        Map<String, String> headerDetails = new HashMap<>();
+        headerDetails.put("department", newTicketDto.department());
+        headerDetails.put("module", newTicketDto.module());
+        headerDetails.put("product", newTicketDto.product());
+        headerDetails.put("subProduct", newTicketDto.subProduct());
+
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonString = mapper.writeValueAsString(headerDetails);
+
+        ticket.setMetaData2(jsonString);
     }
 }

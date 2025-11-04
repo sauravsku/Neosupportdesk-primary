@@ -29,4 +29,5 @@ public interface IPreference {
     ResponseEntity<ResponseDto> getDlpIssueDetailsData(Long fid);
 
     ResponseEntity<ResponseDto> getMenuCounts(String username);
+
 }

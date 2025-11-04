@@ -43,7 +43,7 @@ public class SupportUserSyncService {
 //        syncSupportUsers();
 //    }
 
-    @Scheduled(fixedDelayString = "${userSync.scheduler.delay-ms}")
+    @Scheduled(fixedDelayString = "${userSync.scheduler.delay-ms:30000}")
     @Transactional
     public void syncSupportUsers() {
 

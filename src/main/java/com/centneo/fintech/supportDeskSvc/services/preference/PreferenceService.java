@@ -6,17 +6,14 @@ import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.ActionsRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.PrimaryCardRepository;
 import com.centneo.fintech.supportDeskSvc.services.notification.AnalyticsService;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -51,6 +48,9 @@ public class PreferenceService implements IPreference {
 
     @Autowired
     private ActionsRepositoryReadOnly actionsRepositoryReadOnly;
+
+    @Autowired
+    private NotificationRepositoryReadOnly notificationRepositoryReadOnly;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -315,6 +315,7 @@ public class PreferenceService implements IPreference {
             throw new RuntimeException(e);
         }
     }
+
 
     public ResponseEntity<ResponseDto> getActionsData(Character mode) {
         try {
