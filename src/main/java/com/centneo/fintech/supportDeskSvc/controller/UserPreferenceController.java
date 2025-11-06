@@ -192,4 +192,21 @@ public class UserPreferenceController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
+
+    @GetMapping("/faqs")
+    public ResponseEntity<ResponseDto> getFaqs() {
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getFaqs();
+        } catch (Exception e) {
+            // Return a proper ResponseDto for errors
+            ResponseDto errorResponse = new ResponseDto(
+                    false,
+                    "Error fetching faqs data: " + e.getMessage(),
+                    null,
+                    400
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
 }

@@ -6,6 +6,7 @@ public record MenuCountDto (
         Long notifications,
         Long myTickets,
         Long assigned,
-        Long followUp
+        Long followUp,
+        Long escalated
 ){
 }

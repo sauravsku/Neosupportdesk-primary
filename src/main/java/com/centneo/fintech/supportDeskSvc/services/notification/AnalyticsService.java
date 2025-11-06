@@ -1,7 +1,9 @@
 package com.centneo.fintech.supportDeskSvc.services.notification;
 
 import com.centneo.fintech.supportDeskSvc.dto.MenuCountDto;
+import com.centneo.fintech.supportDeskSvc.model.primary.EscalationHistory;
 import com.centneo.fintech.supportDeskSvc.model.primary.Notifications;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.NotificationRepositoryReadOnly;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ public class AnalyticsService {
     private final TicketsRepository ticketsRepository;
     private final TicketRepositoryReadOnly ticketsRepositoryReadOnly;
     private final NotificationRepositoryReadOnly notificationRepositoryReadOnly;
+    private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
 
     public MenuCountDto syncData(String username) {
 
@@ -27,8 +30,16 @@ public class AnalyticsService {
         Long myTicketsCount = getMyTicketCount(username);
         Long assignedCount = getAssignedTicketCount(username);
         Long followUpCount = getFollowUpTicketCount(username);
+        Long escalationsCount = getEscalationsTicketCount(username);
 
-        return new MenuCountDto(notificationCount, myTicketsCount, assignedCount, followUpCount);
+        return new MenuCountDto(notificationCount, myTicketsCount, assignedCount, followUpCount, escalationsCount);
+    }
+
+    private Long getEscalationsTicketCount(String username) {
+
+        List<EscalationHistory> escalationHistories =
+                escalationHistoryRepositoryReadOnly.findByAssigneeBeforeEquals(username);
+        return escalationHistories.stream().count();
     }
 
     private Long getNotificationsCount(String username) {

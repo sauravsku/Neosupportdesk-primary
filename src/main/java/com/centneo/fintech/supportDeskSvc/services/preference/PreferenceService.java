@@ -41,6 +41,9 @@ public class PreferenceService implements IPreference {
     private AnalyticsService analyticsService;
 
     @Autowired
+    private FaqDetailRepositoryReadOnly faqDetailRepositoryReadOnly;
+
+    @Autowired
     private PrimaryCardRepository primaryCardRepository;
 
     @Autowired
@@ -311,6 +314,26 @@ public class PreferenceService implements IPreference {
                     )
             );
 
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> getFaqs() {
+
+        try {
+            List<FaqDetails> faqDetails =
+                    faqDetailRepositoryReadOnly.findAll();
+            // Return success
+            return ResponseEntity.ok(
+                    new ResponseDto(
+                            true,
+                            "Faqs data fetched successfully",
+                            faqDetails,
+                            HttpStatus.OK.value()
+                    )
+            );
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -656,7 +679,7 @@ public class PreferenceService implements IPreference {
 
     private List<Long> getUserJourneyIds(String username) {
         // Call external API to get journey data
-        String apiUrl = BASE_URL + "/getUserJourney?username=" + username;
+        String apiUrl = BASE_URL + "/getUserJourney?ssoId=" + username;
 
         ResponseEntity<ResponseDto> response = restTemplate.getForEntity(apiUrl, ResponseDto.class);
 

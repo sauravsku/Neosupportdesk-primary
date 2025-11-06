@@ -68,6 +68,16 @@ public class DataInputController {
         }
     }
 
+    @PostMapping("set-faqs")
+    public ResponseEntity<ResponseDto> setFaqsData(@RequestBody List<FaqDto> faqDtos) {
+
+        try {
+            return iDataInput.setFaqData(faqDtos);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @PostMapping("set-actions")
     public ResponseEntity<ResponseDto> setActions(@RequestBody List<ActionsDto> actionsDtos) {
 

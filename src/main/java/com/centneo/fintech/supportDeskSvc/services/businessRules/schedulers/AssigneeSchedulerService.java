@@ -12,6 +12,8 @@ import com.centneo.fintech.supportDeskSvc.repository.write.repository.Escalation
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.SupportUserRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketDetailRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
+import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
+import com.centneo.fintech.supportDeskSvc.services.notification.INotificationService;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -35,12 +37,13 @@ public class AssigneeSchedulerService {
     private final SupportUserSyncService supportUserSyncService;
     private final EscalationHistoryRepository escalationHistoryRepository;
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
+    private final INotificationService iNotificationService;
 
     // configurable batch size per run
     private final int batchSize;
 
     public AssigneeSchedulerService(TicketsRepository ticketsRepository, TicketDetailRepository ticketDetailRepository, TicketRepositoryReadOnly ticketRepositoryReadOnly,
-                                    SupportUserRepository supportUserRepository, SupportUserRepositoryReadOnly supportUserRepositoryReadOnly, SupportUserSyncService supportUserSyncService, EscalationHistoryRepository escalationHistoryRepository, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly,
+                                    SupportUserRepository supportUserRepository, SupportUserRepositoryReadOnly supportUserRepositoryReadOnly, SupportUserSyncService supportUserSyncService, EscalationHistoryRepository escalationHistoryRepository, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, INotificationService iNotificationService,
                                     @Value("${assignee.scheduler.batch-size:20}") int batchSize) {
         this.ticketsRepository = ticketsRepository;
         this.ticketDetailRepository = ticketDetailRepository;
@@ -50,6 +53,7 @@ public class AssigneeSchedulerService {
         this.supportUserSyncService = supportUserSyncService;
         this.escalationHistoryRepository = escalationHistoryRepository;
         this.escalationHistoryRepositoryReadOnly = escalationHistoryRepositoryReadOnly;
+        this.iNotificationService = iNotificationService;
         this.batchSize = batchSize;
     }
 
@@ -147,16 +151,16 @@ public class AssigneeSchedulerService {
         fresh.setLastAssignedAt(LocalDateTime.now());
 
         // update ticket
+        String prevAssignee = ticket.getCurrentAssignee();
         ticket.setCurrentAssignee(fresh.getUsername());
         ticket.setCurrentAssigneeSL(fresh.getSupportLevel()); // assign level on ticket
 
-        ticket.setCurrStatus("Assigned");
+        ticket.setCurrStatus(TicketStatusEnum.REASSIGNED.getLabel());
 
         Optional<EscalationHistory> escalationHistory =
                 escalationHistoryRepositoryReadOnly.findByTicketId(ticket.getTicketId());
 
         if (escalationHistory.isPresent()) {
-
             EscalationHistory escalationHistory1 = escalationHistory.get();
             escalationHistory1.setAssigneeAfter(fresh.getUsername());
             escalationHistory1.setNote(escalationHistory1.getNote().concat("\n Re-assigned to " + fresh.getUsername()));;
@@ -166,7 +170,9 @@ public class AssigneeSchedulerService {
         // persist both
         supportUserRepository.save(fresh);
         Tickets saved = ticketsRepository.save(ticket);
+        iNotificationService.createAssigneeChangeNotification(saved, prevAssignee);
         saveTicketAssigneeHistory(saved);
+
     }
 
     private void saveTicketAssigneeHistory(Tickets savedTicket) {

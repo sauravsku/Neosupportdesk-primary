@@ -26,4 +26,6 @@ public interface IDataInput {
     ResponseEntity<ResponseDto> setTertiaryData(TertiaryCardDto tertiaryCardDto);
 
     ResponseEntity<ResponseDto> setQuadData(QuadCardDto quadCardDto);
+
+    ResponseEntity<ResponseDto> setFaqData(List<FaqDto> faqDtos);
 }

@@ -36,12 +36,13 @@ public class DataInputService implements IDataInput {
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
     private final ActionsRepository actionsRepository;
     private final BranchMasterRepository branchMasterRepository;
+    private final FaqDetailRepository faqDetailRepository;
 
     public DataInputService(
             PrimaryCardRepository primaryCardRepository,
             SecondaryCardRepository secondaryCardRepository, TertiaryCardRepository tertiaryCardRepository, QuadCardRepository quadCardRepository, QuadCardRepositoryReadOnly quadCardRepositoryReadOnly,
             IssueDetailRepository issueDetailRepository,
-            IssueSubDetailRepository issueSubDetailRepository, PrimaryCardRepositoryReadOnly primaryCardRepositoryReadOnly, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, ActionsRepository actionsRepository, BranchMasterRepository branchMasterRepository) {
+            IssueSubDetailRepository issueSubDetailRepository, PrimaryCardRepositoryReadOnly primaryCardRepositoryReadOnly, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, ActionsRepository actionsRepository, BranchMasterRepository branchMasterRepository, FaqDetailRepository faqDetailRepository) {
         this.primaryCardRepository = primaryCardRepository;
         this.secondaryCardRepository = secondaryCardRepository;
         this.tertiaryCardRepository = tertiaryCardRepository;
@@ -53,6 +54,7 @@ public class DataInputService implements IDataInput {
         this.escalationHistoryRepositoryReadOnly = escalationHistoryRepositoryReadOnly;
         this.actionsRepository = actionsRepository;
         this.branchMasterRepository = branchMasterRepository;
+        this.faqDetailRepository = faqDetailRepository;
     }
 
     @Override
@@ -362,4 +364,24 @@ public class DataInputService implements IDataInput {
         }
     }
 
+    @Override
+    public ResponseEntity<ResponseDto> setFaqData(List<FaqDto> faqDtos) {
+
+        FaqDetails faqDetails = new FaqDetails();
+        try {
+            for (FaqDto faqDto : faqDtos) {
+                faqDetails = new FaqDetails();
+                faqDetails.setQuestion(faqDto.question());
+                faqDetails.setAnswer(faqDto.answer());
+                faqDetails.setCategories(faqDto.categories());
+                faqDetails.setRelated(faqDto.related());
+                faqDetails = faqDetailRepository.save(faqDetails);
+            }
+            return ResponseEntity.status(HttpStatus.ACCEPTED)
+                    .body(new ResponseDto(true, "saved", faqDetails, 200));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseDto(false, "Error while saving Tertiary Card: " + e.getMessage(), null, 500));
+        }
+    }
 }

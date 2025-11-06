@@ -14,7 +14,8 @@ import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.*;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
-import com.centneo.fintech.supportDeskSvc.services.notification.NotificationService;
+import com.centneo.fintech.supportDeskSvc.services.notification.AnalyticsService;
+import com.centneo.fintech.supportDeskSvc.services.notification.INotificationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -28,6 +29,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -53,7 +55,9 @@ public class TicketService implements ITicket {
     private final BranchMasterReadOnly branchMasterReadOnly;
     private final ApplicationEventPublisher publisher;
     private final GitlabService gitlabService;
-    private final NotificationService notificationService;
+    private final INotificationService iNotificationService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final AnalyticsService analyticsService;
 
     @Value("${gitlab.project-id}")
     private String projectId;
@@ -93,6 +97,9 @@ public class TicketService implements ITicket {
 
             //set ticket assignees history
             saveTicketAssigneeHistory(savedTicket);
+
+            messagingTemplate.convertAndSend("/topic/counts/" + newTicketDto.ticketRequester(), analyticsService.syncData(newTicketDto.ticketRequester()));
+
 
             Integer actionId = Integer.parseInt(savedTicket.getActionId());
             if (ActionsEnum.fromCode(actionId) == ActionsEnum.GITLAB) {
@@ -309,35 +316,11 @@ public class TicketService implements ITicket {
         Tickets saved = ticketsRepository.save(t);
         saveTicketAssigneeHistory(saved);
 
-        publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
-                Map.of("ticketId", saved.getTicketId(), "action", "resolved")));
-
-        createNotification(saved, hist);
+        iNotificationService.createEscalationNotification(saved, hist);
 
         return saved;
     }
 
-    private void createNotification(Tickets ticket, EscalationHistory hist) {
-        String title = "Ticket Escalated: " + ticket.getTicketId();
-        String body = String.format(
-                "Ticket #%s has been escalated from %s to %s by %s.%nReason: %s%nNew SLA Due: %s",
-                ticket.getTicketId(),
-                hist.getFromLevel(),
-                hist.getToLevel(),
-                hist.getEscalatedBy(),
-                hist.getNote(),
-                hist.getSlaDueDatetime()
-        );
-
-        // create notification
-        notificationService.createNotification(
-                NotificationTypeEnum.ESCALATIONS.getDescription(),
-                title,
-                body,
-                ticket.getTicketRequester()
-        );
-
-    }
 
     private String resolveCurrentAssignee(String code) {
         if (code == null) return "";
@@ -397,6 +380,7 @@ public class TicketService implements ITicket {
      * fall back to rule-driven escalation (next).
      */
     public Tickets escalate(String ticketId, String targetLevel) {
+
         if (targetLevel == null || targetLevel.isBlank()) {
             return escalate(ticketId);
         }
@@ -426,6 +410,8 @@ public class TicketService implements ITicket {
 
         Tickets savedTicket = ticketsRepository.save(t);
         saveTicketAssigneeHistory(savedTicket);
+
+        iNotificationService.createEscalationNotificationUsingTicket(savedTicket);
         return savedTicket;
     }
 
@@ -526,7 +512,7 @@ public class TicketService implements ITicket {
             ResponseDto response = new ResponseDto(
                     true,
                     message,
-                    tickets,
+                    filteredTicketByIssues,
                     200
             );
             return ResponseEntity.ok(response);
@@ -545,7 +531,6 @@ public class TicketService implements ITicket {
     private List<Tickets> ticketHandler(List<Tickets> tickets) {
 
         for (Tickets ticket : tickets) {
-
             Optional<IssueDetail> issueDetail = issueDetailRepositoryReadOnly.
                     findById(Long.parseLong(ticket.getIssueId()));
             Optional<IssueSubDetail> issueSubDetail = issueSubDetailRepositoryReadOnly.
@@ -682,6 +667,8 @@ public class TicketService implements ITicket {
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "closed")));
 
+        iNotificationService.createClosedNotification(saved);
+
         return saved;
     }
 
@@ -708,6 +695,7 @@ public class TicketService implements ITicket {
                 case "in progress":
                 case "inprogress": {
                     Tickets updated = inProgress(ticketId, message);
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     ResponseDto ok = new ResponseDto(true, "Ticket marked In Progress", updated, 200);
                     return ResponseEntity.ok(ok);
                 }
@@ -715,12 +703,14 @@ public class TicketService implements ITicket {
                 case "resolved": {
                     Tickets updated = resolve(ticketId, message);
                     ResponseDto ok = new ResponseDto(true, "Ticket resolved", updated, 200);
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
                 }
                 case "close":
                 case "closed": {
                     Tickets updated = close(ticketId, message);
                     ResponseDto ok = new ResponseDto(true, "Ticket closed", updated, 200);
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
                 }
                 case "escalate": {
@@ -731,6 +721,9 @@ public class TicketService implements ITicket {
                         updated = escalate(ticketId);
                     }
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
+                    publisher.publishEvent(new DashboardUpdateEvent(this, updated.getTicketRequester(),
+                            Map.of("ticketId", updated.getTicketId(), "action", "resolved")));
                     return ResponseEntity.ok(ok);
                 }
                 case "refer-back": {
@@ -741,6 +734,7 @@ public class TicketService implements ITicket {
                         updated = referBack(ticketId, message);
                     }
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
                 }
                 case "re-assign": {
@@ -751,6 +745,7 @@ public class TicketService implements ITicket {
                         updated = reAssignTicket(ticketId, message);
                     }
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
                 }
                 default: {
@@ -795,6 +790,7 @@ public class TicketService implements ITicket {
                 saveTicketAssigneeHistory(updateAssignee);
             } else {
                 Tickets updateAssignee = ticket.get();
+                String prevAssignee = updateAssignee.getCurrentAssignee();
                 Optional<TicketDetails> singleEntry = ticketDetails.stream()
                         .sorted(Comparator.comparing(TicketDetails::getCreatedAt))
                         .skip(Math.max(0, ticketDetails.size() - 2))
@@ -804,8 +800,10 @@ public class TicketService implements ITicket {
                 updateAssignee.setCurrentAssignee(singleEntry.get().getPrevAssignee());
                 updateAssignee.setCurrentAssigneeSL(singleEntry.get().getPrevAssigneeSl());
                 updateAssignee.setCurrStatus(TicketStatusEnum.REFERRED_BACK.getLabel());
-                ticketsRepository.save(updateAssignee);
+                Tickets savedTicket = ticketsRepository.save(updateAssignee);
                 saveTicketAssigneeHistory(updateAssignee);
+                iNotificationService.
+                        createReferBackNotification(savedTicket, prevAssignee, singleEntry.get().getPrevAssignee());
             }
             return ticket.get();
         } catch (Exception exception) {
@@ -898,7 +896,10 @@ public class TicketService implements ITicket {
             }
 
             Optional<Tickets> tickets = ticketRepositoryReadOnly.findById(ticketRequestByIdDto.ticketId());
-            ResponseDto ok = new ResponseDto(true, "1 Ticket found", tickets.get(), 200);
+            List<Tickets> tickets1 = new ArrayList<>();
+            tickets1.add(tickets.get());
+            tickets1 = ticketHandler(tickets1);
+            ResponseDto ok = new ResponseDto(true, "1 Ticket found", tickets1.get(0), 200);
             return ResponseEntity.ok(ok);
 
         } catch (Exception e) {

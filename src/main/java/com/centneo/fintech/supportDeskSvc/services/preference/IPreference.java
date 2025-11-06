@@ -30,4 +30,5 @@ public interface IPreference {
 
     ResponseEntity<ResponseDto> getMenuCounts(String username);
 
+    ResponseEntity<ResponseDto> getFaqs();
 }
