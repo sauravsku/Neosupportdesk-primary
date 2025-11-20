@@ -5,12 +5,15 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -41,7 +44,7 @@ public class Tickets extends BaseEntity {
     @Column(name = "METADATA3", nullable = true)
     private String metaData3;
 
-    @Column(name = "isReferredBack", nullable = true)
+    @Column(name = "is_referred_back", nullable = true)
     private Boolean isReferredBack;
 
     @Column(name = "refer_back_comment", nullable = true)
@@ -178,4 +181,18 @@ public class Tickets extends BaseEntity {
             this.breachedFlag = false;
         }
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Tickets)) return false;
+        Tickets t = (Tickets) o;
+        return ticketId != null && ticketId.equals(t.getTicketId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(ticketId);
+    }
+
 }

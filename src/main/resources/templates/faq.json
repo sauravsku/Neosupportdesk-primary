@@ -1,0 +1,92 @@
+[
+  {
+    "question": "What is the SLA for P1 / Critical incidents?",
+    "answer": "<p>Critical incidents (P1) require immediate attention. The response target is <strong>15 minutes</strong> and resolution target is <strong>4 hours</strong>.</p>",
+    "categories": ["sla", "severity"],
+    "related": ["/sla/policies", "/tickets/priorities"]
+  },
+  {
+    "question": "What is the escalation process for overdue tickets?",
+    "answer": "<p>Tickets breaching SLA thresholds are auto-escalated to the next level in the escalation matrix. Notifications are sent to both the current assignee and escalation owner.</p>",
+    "categories": ["escalation", "sla", "notifications"],
+    "related": ["/escalations/levels", "/notifications/types"]
+  },
+  {
+    "question": "How do I add a comment to a ticket?",
+    "answer": "<p>Open the ticket details page and click <strong>Add Comment</strong>. You can tag users using <code>@username</code> for faster collaboration.</p>",
+    "categories": ["comments", "tickets", "collaboration"],
+    "related": ["/tickets/usage", "/comments/policy"]
+  },
+  {
+    "question": "What are ticket priority levels and their definitions?",
+    "answer": "<ul><li><strong>P1 – Critical:</strong> Major outage or severe impact.</li><li><strong>P2 – High:</strong> Service degraded, workaround possible.</li><li><strong>P3 – Medium:</strong> Minor issue, normal operations continue.</li><li><strong>P4 – Low:</strong> General inquiry or enhancement.</li></ul>",
+    "categories": ["tickets", "sla", "severity"],
+    "related": ["/tickets/priorities"]
+  },
+  {
+    "question": "How can I view tickets assigned to me?",
+    "answer": "<p>Go to the <strong>My Tickets</strong> section from the left menu. You can filter by status, priority, or date range to narrow down your results.</p>",
+    "categories": ["tickets", "dashboard", "filters"],
+    "related": ["/tickets/dashboard"]
+  },
+  {
+    "question": "Can I reopen a closed ticket?",
+    "answer": "<p>Yes, tickets can be reopened within <strong>48 hours</strong> of closure if the issue persists. After this period, a new ticket must be raised referencing the old one.</p>",
+    "categories": ["tickets", "workflow"],
+    "related": ["/tickets/lifecycle"]
+  },
+  {
+    "question": "What reports are available for team leads?",
+    "answer": "<p>Team leads can access the <strong>Reports</strong> section for metrics like average resolution time, SLA compliance rate, and escalation frequency.</p>",
+    "categories": ["reports", "dashboard", "analytics"],
+    "related": ["/reports/dashboard"]
+  },
+  {
+    "question": "How are notifications generated in the system?",
+    "answer": "<p>Notifications are created for major events like new ticket creation, status change, comments, or SLA escalations. They can be viewed in the <strong>Notifications</strong> tab or sent via email.</p>",
+    "categories": ["notifications", "tickets"],
+    "related": ["/notifications/settings"]
+  },
+  {
+    "question": "How do I raise a new support ticket?",
+    "answer": "<p>Click on <strong>Raise Ticket</strong> in the top navigation bar, provide details like category, description, and priority, and submit. You’ll receive a confirmation notification instantly.</p>",
+    "categories": ["tickets", "support"],
+    "related": ["/tickets/create"]
+  },
+  {
+    "question": "What is the difference between response time and resolution time?",
+    "answer": "<p><strong>Response Time</strong> is the time taken to acknowledge a ticket, while <strong>Resolution Time</strong> is the time taken to completely resolve it.</p>",
+    "categories": ["sla", "definitions"],
+    "related": ["/sla/definitions"]
+  },
+  {
+    "question": "Who receives escalation notifications?",
+    "answer": "<p>Escalation notifications are sent to the <strong>next-level manager</strong>, current assignee, and the escalation group configured in the escalation policy.</p>",
+    "categories": ["escalation", "notifications"],
+    "related": ["/escalations/policy"]
+  },
+  {
+    "question": "Can I download all tickets in Excel or PDF format?",
+    "answer": "<p>Yes, you can export tickets from the <strong>Tickets Dashboard</strong> using the <em>Export</em> button. Supported formats include CSV, XLSX, and PDF.</p>",
+    "categories": ["tickets", "reports", "export"],
+    "related": ["/reports/export"]
+  },
+  {
+    "question": "What happens when a ticket is reassigned?",
+    "answer": "<p>The new assignee receives an instant notification. The ticket history keeps track of all assignment changes for audit purposes.</p>",
+    "categories": ["tickets", "workflow", "notifications"],
+    "related": ["/tickets/history"]
+  },
+  {
+    "question": "How do I change my notification preferences?",
+    "answer": "<p>Go to <strong>My Profile → Preferences</strong> and toggle notification channels like email or in-app alerts as per your preference.</p>",
+    "categories": ["notifications", "preferences"],
+    "related": ["/user/preferences"]
+  },
+  {
+    "question": "What is a ticket’s escalation path?",
+    "answer": "<p>Each ticket follows a defined escalation path such as <code>L1 → L2 → L3</code>. You can view this path in the ticket details section under <strong>Escalation History</strong>.</p>",
+    "categories": ["escalation", "workflow"],
+    "related": ["/escalations/history"]
+  }
+]

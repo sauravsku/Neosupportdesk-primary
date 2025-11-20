@@ -28,7 +28,7 @@ public class Notifications extends BaseEntity {
     @Column(name = "unread")
     private Boolean unread;
 
-    @Column(name = "metaData")
+    @Column(name = "meta_data")
     private String metaData;
 
     @Column(name = "username")

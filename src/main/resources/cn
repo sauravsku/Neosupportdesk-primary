@@ -40,6 +40,15 @@ jwt:
   public-key-file: classpath:keys/jwt_public_key.pem
   issuer: centneo
 
+
+#  aws:
+#    region: us-east-1 # change to your region
+#    bucket: your-bucket-name # change to your bucket
+#    access-key: ${AWS_ACCESS_KEY:CHANGE_ME}
+#    secret-key: ${AWS_SECRET_KEY:CHANGE_ME}
+#    presign-expiration-minutes: 15
+
+
 logging:
   level:
     org.springframework: INFO
@@ -47,9 +56,9 @@ logging:
     org.springframework.security: TRACE
     org.springframework.ldap: TRACE
     org.springframework.security.ldap: TRACE
-#    com.zaxxer.hikari: TRACE
-#    org.hibern
-
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.type.descriptor.sql: TRACE
+    org.hibernate.loader.plan.exec.process.internal: TRACE
 
 
 spring:
@@ -68,9 +77,9 @@ supportDeskAuthSvc:
   base-url: http://localhost:9002/api/identity
 
 gitlab:
-  token: glpat-z5YJoyyE8QGsdbpQu3LS
+  token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km   #glpat-z5YJoyyE8QGsdbpQu3LS
   webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
-  project-id: 1394
+  project-id: 74943366
   url: https://gitlab.com #https://devsecops.centralbank.co.in
 
   #https://gitlab.com
@@ -102,4 +111,3 @@ logging:
     org.springframework.ldap: TRACE
     org.springframework.security.ldap: TRACE
 #    com.zaxxer.hikari: TRACE
-#    org.hibern

@@ -156,6 +156,12 @@ public class TicketService implements ITicket {
                                 dueDate
                         );
 
+                        // 2) update issue to set multiple assignees (pseudo-code)
+//                        List<Long> both = Arrays.asList(12512071L, 8571572L);
+//                        gitlabService.updateIssue(projectIdOrPath,
+//                                remote.getIid(), gitLabIssue.getIssueTitle(),
+//                                gitLabIssue.getIssueDescription(),both, labels, createdAt, dueDate);
+
                         if (remote == null) {
                             throw new IllegalStateException("GitLab API returned null when creating issue");
                         }
@@ -170,11 +176,13 @@ public class TicketService implements ITicket {
 
                         gitLabIssue.setWebUrl(remote.getWebUrl());
                         gitLabIssue.setIssueStatus("opened");
+                        gitLabIssue.setIssueLabel(labels);
                         gitLabIssue.setGitlabUpdatedAt(remote.getUpdatedAt());
 
                         // assignee(s)
                         if (remote.getAssignee() != null && remote.getAssignee().getId() != null) {
                             gitLabIssue.setAssigneeId(remote.getAssignee().getId().longValue());
+                            gitLabIssue.setAssigneeName(remote.getAssignee().getName());
                         } else if (remote.getAssignees() != null && !remote.getAssignees().isEmpty()) {
                             Integer firstId = Math.toIntExact(remote.getAssignees().get(0).getId());
                             if (firstId != null) gitLabIssue.setAssigneeId(firstId.longValue());
@@ -417,14 +425,10 @@ public class TicketService implements ITicket {
 
     @Override
     public ResponseEntity<ResponseDto> getTickets(TicketRequestDto ticketRequestDto) {
-
         try {
             if (ticketRequestDto == null || ticketRequestDto.requestFlag() == null) {
                 ResponseDto invalidResponse = new ResponseDto(
-                        false,
-                        "Request flag cannot be null.",
-                        null,
-                        400
+                        false, "Request flag cannot be null.", null, 400
                 );
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
             }
@@ -434,112 +438,118 @@ public class TicketService implements ITicket {
             TicketRequestEnum requestEnum = ticketRequestDto.requestFlag();
 
             switch (requestEnum) {
-                case A:
+                case A -> {
                     tickets = ticketRepositoryReadOnly.findAll();
                     message = tickets.isEmpty()
                             ? "No tickets found."
                             : "All tickets fetched successfully.";
-                    break;
-
-                case C:
+                }
+                case C -> {
                     if (ticketRequestDto.username() == null || ticketRequestDto.username().isBlank()) {
                         ResponseDto invalidResponse = new ResponseDto(
-                                false,
-                                "Assignee cannot be null or empty for request flag C.",
-                                null,
-                                400
+                                false, "Assignee cannot be null or empty for request flag C.", null, 400
                         );
                         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
                     }
-
                     tickets = ticketRepositoryReadOnly.findByCurrentAssignee(ticketRequestDto.username());
                     message = tickets.isEmpty()
                             ? "No Tickets found for assignee: " + ticketRequestDto.username()
                             : "Tickets fetched successfully for assignee: " + ticketRequestDto.username();
-                    break;
-                case O:
+                }
+                case O -> {
                     if (ticketRequestDto.username() == null || ticketRequestDto.username().isBlank()) {
                         ResponseDto invalidResponse = new ResponseDto(
-                                false,
-                                "Assignee cannot be null or empty for request flag C.",
-                                null,
-                                400
+                                false, "Assignee cannot be null or empty for request flag O.", null, 400
                         );
                         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
                     }
                     tickets = ticketRepositoryReadOnly.findByTicketRequester(ticketRequestDto.username());
-//                    tickets.stream().map(t -> {
-//                        t.setTicketRequesterSL(SupportLevelEnum.
-//                                fromLabel(t.getTicketRequesterSL()).getCode());
-//                        return t;
-//                    }).collect(Collectors.toUnmodifiableList());
                     message = tickets.isEmpty()
                             ? "No Tickets found created by user: " + ticketRequestDto.username()
                             : "Tickets fetched successfully created by: " + ticketRequestDto.username();
-                    break;
-                case F:
+                }
+                case F -> {
                     if (ticketRequestDto.username() == null || ticketRequestDto.username().isBlank()) {
                         ResponseDto invalidResponse = new ResponseDto(
-                                false,
-                                "Assignee cannot be null or empty for request flag F.",
-                                null,
-                                400
+                                false, "Assignee cannot be null or empty for request flag F.", null, 400
                         );
                         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
                     }
-                    tickets = ticketRepositoryReadOnly.findByCurrentAssigneeAndActionId(ticketRequestDto.username(),
-                            ActionsEnum.FOLLOW_UP.getCode().toString());
-//                    tickets.stream().map(t -> {
-//                        t.setTicketRequesterSL(SupportLevelEnum.
-//                                fromLabel(t.getTicketRequesterSL()).getCode());
-//                        return t;
-//                    }).collect(Collectors.toUnmodifiableList());
+                    tickets = ticketRepositoryReadOnly.findByCurrentAssigneeAndActionId(
+                            ticketRequestDto.username(), ActionsEnum.FOLLOW_UP.getCode().toString());
                     message = tickets.isEmpty()
-                            ? "No Tickets found created by user: " + ticketRequestDto.username()
-                            : "Tickets fetched successfully created by: " + ticketRequestDto.username();
-                    break;
-                default:
+                            ? "No Tickets found for follow-up by: " + ticketRequestDto.username()
+                            : "Tickets fetched successfully for follow-up by: " + ticketRequestDto.username();
+                }
+                default -> {
                     ResponseDto invalidResponse = new ResponseDto(
-                            false,
-                            "Invalid request flag: " + requestEnum,
-                            null,
-                            400
+                            false, "Invalid request flag: " + requestEnum, null, 400
                     );
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(invalidResponse);
+                }
             }
 
-            List<Tickets> filteredTicketByIssues = ticketHandler(tickets);
+            // ✅ FIX: remove duplicates due to join-fetch
+            List<Tickets> distinctTickets = tickets.stream()
+                    .filter(Objects::nonNull)
+                    .distinct()  // based on ticketId (requires equals/hashCode)
+                    .collect(Collectors.toList());
+
+            // continue existing filtering logic
+            List<Tickets> filteredTicketByIssues = ticketHandler(distinctTickets);
+
             ResponseDto response = new ResponseDto(
-                    true,
-                    message,
-                    filteredTicketByIssues,
-                    200
+                    true, message, filteredTicketByIssues, 200
             );
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             ResponseDto errorResponse = new ResponseDto(
-                    false,
-                    "Failed to fetch tickets: " + e.getMessage(),
-                    null,
-                    500
+                    false, "Failed to fetch tickets: " + e.getMessage(), null, 500
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
-    private List<Tickets> ticketHandler(List<Tickets> tickets) {
 
+    private List<Tickets> ticketHandler(List<Tickets> tickets) {
         for (Tickets ticket : tickets) {
-            Optional<IssueDetail> issueDetail = issueDetailRepositoryReadOnly.
-                    findById(Long.parseLong(ticket.getIssueId()));
-            Optional<IssueSubDetail> issueSubDetail = issueSubDetailRepositoryReadOnly.
-                    findById(Long.parseLong(ticket.getIssueSubTypeId()));
-            ticket.setIssueId(issueDetail.get().getIssueName());
-            ticket.setIssueSubTypeId(issueSubDetail.get().getIssueName());
+            String rawIssueId = ticket.getIssueId();
+            if (rawIssueId == null || rawIssueId.isBlank()) {
+                ticket.setIssueId   (null);
+            } else {
+                try {
+                    long issueId = Long.parseLong(rawIssueId);
+                    Optional<IssueDetail> od = issueDetailRepositoryReadOnly.findById(issueId);
+                    od.ifPresentOrElse(
+                            d -> ticket.setIssueId(d.getIssueName()),
+                            () -> ticket.setIssueId(null)
+                    );
+                } catch (NumberFormatException ex) {
+                    // already a name (or malformed) — don't try to parse
+                    ticket.setIssueId(rawIssueId);
+                }
+            }
+
+            String rawSubId = ticket.getIssueSubTypeId();
+            if (rawSubId == null || rawSubId.isBlank()) {
+                ticket.setIssueSubTypeId(null);
+            } else {
+                try {
+                    long subId = Long.parseLong(rawSubId);
+                    Optional<IssueSubDetail> osd = issueSubDetailRepositoryReadOnly.findById(subId);
+                    osd.ifPresentOrElse(
+                            s -> ticket.setIssueSubTypeId(s.getIssueName()),
+                            () -> ticket.setIssueSubTypeId(null)
+                    );
+                } catch (NumberFormatException ex) {
+                    ticket.setIssueSubTypeId(rawSubId);
+                }
+            }
         }
         return tickets;
     }
+
 
     // ------------ new action implementations ------------
 

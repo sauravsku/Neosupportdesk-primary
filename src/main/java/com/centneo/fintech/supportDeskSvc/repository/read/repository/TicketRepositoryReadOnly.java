@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -16,7 +17,8 @@ public interface TicketRepositoryReadOnly extends TicketsRepository {
 
     List<Tickets> findByCurrentAssignee(String assignee);
 
-    List<Tickets> findByTicketRequester(String username);
+    @Query("select distinct t from Tickets t left join fetch t.comments where t.ticketRequester = :username")
+    List<Tickets>  findByTicketRequester(@Param("username") String username);
 
     List<Tickets> findByCurrStatusNotIn(List<String> code);
 
@@ -43,5 +45,83 @@ public interface TicketRepositoryReadOnly extends TicketsRepository {
 
 
 
+    @Query("""
+    SELECT t FROM Tickets t
+    WHERE t.sid = :sid 
+      AND (t.ticketRequester = :username OR t.currentAssignee = :username)""")
+    List<Tickets> findBySidAndRequesterOrAssignee(@Param("sid") String sid,
+                                                  @Param("username") String username);
+
+
+    @Query("""
+        SELECT DISTINCT t FROM Tickets t
+        WHERE t.sid IN :sids
+          AND (COALESCE(t.ticketRequester, '') = :username OR COALESCE(t.currentAssignee, '') = :username)
+    """)
+    List<Tickets> findBySidInAndRequesterOrAssignee(@Param("sids") Collection<String> sids,
+                                                    @Param("username") String username);
+
+
+    // Batch method: find all tickets whose sid is IN provided list and where requester == username OR currentAssignee == username.
+    @Query("SELECT t FROM Tickets t WHERE t.sid IN :sids AND (LOWER(t.ticketRequester) = LOWER(:username) OR LOWER(t.currentAssignee) = LOWER(:username))")
+    List<Tickets> findBySidInAndRequesterOrAssignee(List<String> sids, String username);
+
+
+    /**
+     * Average first-response time in minutes using CREATED_AT - LOGGED_DT
+     */
+    @Query(value =
+            "SELECT AVG( (CAST(t.created_at AS DATE) - CAST(t.logged_dt AS DATE)) * 24 * 60 ) " +
+                    "FROM tickets t " +
+                    "WHERE t.created_at IS NOT NULL " +
+                    "AND t.ticket_requester = :username",
+            nativeQuery = true)
+    Double findAvgResponseMinsNative(@Param("username") String username);
+
+
+    /**
+     * Average MTTR in minutes (only resolved tickets).
+     */
+    @Query(value =
+            "SELECT AVG( (CAST(t.resolved_dt AS DATE) - CAST(t.created_at AS DATE)) * 24 * 60 ) " +
+                    "FROM tickets t " +
+                    "WHERE t.resolved_dt IS NOT NULL " +
+                    "AND t.ticket_requester = :username",
+            nativeQuery = true)
+    Double findAvgMttrMinsNative(@Param("username") String username);
+
+
+    /**
+     * Count SLA breaches using BREACHED_FLAG (NUMBER(1,0) where 1 = breached)
+     */
+    @Query(value =
+            "SELECT COUNT(*) " +
+                    "FROM tickets t " +
+                    "WHERE t.breached_flag = 1 " +
+                    "AND t.ticket_requester = :username",
+            nativeQuery = true)
+    Integer countSlaBreachesNative(@Param("username") String username);
+
+
+    /**
+     * Trends: ticket counts per day for the last 7 days (including today).
+     * Returns rows of [day_string, count]. Day string format: 'YYYY-MM-DD'
+     */
+    @Query(value =
+            "SELECT TO_CHAR(days.trunc_date, 'YYYY-MM-DD') AS day, NVL(t.cnt, 0) AS cnt " +
+                    "FROM ( " +
+                    "  SELECT (TRUNC(SYSDATE) - 6) + (LEVEL - 1) AS trunc_date " +
+                    "  FROM dual CONNECT BY LEVEL <= 7 " +
+                    ") days " +
+                    "LEFT JOIN ( " +
+                    "  SELECT TRUNC(t.logged_dt) AS d, COUNT(*) AS cnt " +
+                    "  FROM tickets t " +
+                    "  WHERE t.logged_dt >= TRUNC(SYSDATE) - 6 " +
+                    "    AND t.ticket_requester = :username " +
+                    "  GROUP BY TRUNC(t.logged_dt) " +
+                    ") t ON t.d = days.trunc_date " +
+                    "ORDER BY days.trunc_date",
+            nativeQuery = true)
+    List<Object[]> findTicketsPerDayLast7Native(@Param("username") String username);
 
 }

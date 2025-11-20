@@ -209,4 +209,16 @@ public class UserPreferenceController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
+
+    @GetMapping("/getSsoName")
+    public String getSsoName(@RequestParam("ssoId") String ssoId) {
+
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getSsoName(ssoId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
 }

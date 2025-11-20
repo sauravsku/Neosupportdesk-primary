@@ -38,8 +38,18 @@ public class AnalyticsService {
     private Long getEscalationsTicketCount(String username) {
 
         List<EscalationHistory> escalationHistories =
-                escalationHistoryRepositoryReadOnly.findByAssigneeBeforeEquals(username);
-        return escalationHistories.stream().count();
+                escalationHistoryRepositoryReadOnly.findByAssigneeAfterEquals(username);
+        Long count = 0L;
+        for (EscalationHistory escalationHistory :  escalationHistories) {
+
+            Optional<Tickets> ticket =
+                    ticketsRepositoryReadOnly.findById(escalationHistory.getTicketId());
+            if (!ticket.get().getCurrStatus().equalsIgnoreCase(TicketStatusEnum.CLOSED.getLabel().toLowerCase())) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private Long getNotificationsCount(String username) {

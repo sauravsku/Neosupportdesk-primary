@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Objects;
+
 @Entity
 @Getter
 @Setter
@@ -44,4 +46,16 @@ public class IssueSubDetail extends BaseEntity {
     @JsonBackReference
     private IssueDetail issueDetail;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IssueSubDetail that = (IssueSubDetail) o;
+        return Objects.equals(issueSubTypeId, that.issueSubTypeId) && Objects.equals(issueName, that.issueName) && Objects.equals(issueDesc, that.issueDesc) && Objects.equals(issueExt1, that.issueExt1) && Objects.equals(issueExt2, that.issueExt2) && Objects.equals(issueExt3, that.issueExt3) && Objects.equals(issueExt4, that.issueExt4) && Objects.equals(issueExt5, that.issueExt5) && Objects.equals(issueDetail, that.issueDetail);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(issueSubTypeId, issueName, issueDesc, issueExt1, issueExt2, issueExt3, issueExt4, issueExt5, issueDetail);
+    }
 }

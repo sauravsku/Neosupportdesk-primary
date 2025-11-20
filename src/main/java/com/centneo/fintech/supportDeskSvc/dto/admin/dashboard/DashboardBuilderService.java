@@ -2,6 +2,7 @@ package com.centneo.fintech.supportDeskSvc.dto.admin.dashboard;
 
 import com.centneo.fintech.supportDeskSvc.dto.admin.ModuleItemDto;
 import com.centneo.fintech.supportDeskSvc.dto.admin.TicketCountDto;
+import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -9,42 +10,69 @@ import java.util.stream.Collectors;
 
 /**
  * Build ModuleItemDto from Tickets list.
+ *
+ * Important behavior:
+ *  - assigned-like statuses are counted in 'assigned' ONLY if currentAssignee == username
+ *  - in_progress when assigned to the user is considered 'assigned' for user's KPI
+ *  - otherwise tickets are classified into canonical buckets (open, in_progress, escalated, resolved, closed)
  */
 @Service
 public class DashboardBuilderService {
 
-    // normalize one ticket status string -> canonical key
     private String normalizeStatus(String raw) {
         if (raw == null) return "open";
-        String s = raw.trim().toLowerCase();
-        if (s.equals("new") || s.equals("open") || s.equals("received")) return "open";
-        if (s.equals("assigned")) return "assigned";
-        if (s.equals("in-progress") || s.equals("inprogress")) return "in_progress";
-        if (s.equals("escalated")) return "escalated";
-        if (s.equals("resolved") || s.equals("completed")) return "resolved";
-        if (s.equals("closed")) return "closed";
-        if (s.equals("reopened")) return "reopened";
-        // fallback
-        return s.replaceAll("\\s+", "_");
+        String s = raw.trim().toUpperCase().replaceAll("\\s+", "_");
+
+        switch (s) {
+            case "NEW":
+            case "OPEN":
+            case "RECEIVED":
+                return "open";
+
+            case "ASSIGNED":
+                return "assigned";
+
+            case "RE-ASSIGNED":
+            case "RE_ASSIGNED":
+            case "REASSIGNED":
+                return "re_assigned";
+
+            case "IN-PROGRESS":
+            case "IN_PROGRESS":
+            case "INPROGRESS":
+                return "in_progress";
+
+            case "ESCALATED":
+                return "escalated";
+
+            case "ON_HOLD": // CRITICAL in your enum
+                return "escalated"; // treat on-hold as escalated/attention required
+
+            case "RESOLVED":
+            case "COMPLETED":
+                return "resolved";
+
+            case "CLOSED":
+                return "closed";
+
+            case "REFERRED_BACK":
+            case "REFERRED-BACK":
+            case "REFERRED":
+                return "referred_back";
+
+            default:
+                return s.toLowerCase().replaceAll("[^a-z0-9_]", "_");
+        }
     }
 
-    /**
-     * Build ModuleItemDto from a list of Tickets entities (dedupe within this list)
-     *
-     * @param pidStr primary pid (string or number)
-     * @param name module name
-     * @param description module description
-     * @param path module path
-     * @param tickets list of Tickets (your entity). must expose an id and status
-     * @param extra optional extra map (we will add ticketIds & ticketStatusMap)
-     */
     public ModuleItemDto buildModuleItemFromTickets(
             String pidStr,
             String name,
             String description,
             String path,
-            List<?> tickets,
-            Map<String, Object> extra
+            List<Tickets> tickets,
+            Map<String, Object> extra,
+            String username
     ) {
         ModuleItemDto dto = new ModuleItemDto();
         dto.setPid(pidStr);
@@ -53,75 +81,68 @@ public class DashboardBuilderService {
         dto.setPath(path);
         dto.setExtra(extra == null ? new HashMap<>() : new HashMap<>(extra));
 
-        // canonical stage buckets
-        List<String> canonical = Arrays.asList("open","assigned","in_progress","escalated","resolved","closed","reopened");
+        List<String> canonical = Arrays.asList("open", "assigned", "in_progress", "escalated", "resolved", "closed", "referred_back");
 
-        Map<String,Integer> stats = new LinkedHashMap<>();
+        Map<String, Integer> stats = new LinkedHashMap<>();
         canonical.forEach(k -> stats.put(k, 0));
 
-        // dedupe by ticket id in this secondary
         Set<String> seen = new LinkedHashSet<>();
         Map<String, String> ticketStatusMap = new LinkedHashMap<>();
+        Map<String, String> currentAssigneeMap = new LinkedHashMap<>();
+        Map<String, String> ticketRequesterMap = new LinkedHashMap<>();
+
 
         if (tickets != null) {
-            for (Object tObj : tickets) {
-                // adapt to your Tickets entity: try common getters
-                String id = null;
-                String rawStatus = null;
-                try {
-                    // reflection fallback: try common getters
-                    // Primary attempt: getTicketId()
-                    Object idVal = null;
-                    try {
-                        idVal = tObj.getClass().getMethod("getTicketId").invoke(tObj);
-                    } catch (NoSuchMethodException e) {
-                        try {
-                            idVal = tObj.getClass().getMethod("getId").invoke(tObj);
-                        } catch (NoSuchMethodException ex) {
-                            // last fallback: toString
-                            idVal = tObj.toString();
-                        }
-                    }
-                    id = idVal == null ? null : String.valueOf(idVal);
+            for (Tickets ticket : tickets) {
+                if (ticket == null) continue;
+                String ticketId = ticket.getTicketId();
+                if (ticketId == null) continue;
 
-                    // status getters
-                    try {
-                        Object st = tObj.getClass().getMethod("getStatus").invoke(tObj);
-                        rawStatus = st == null ? null : String.valueOf(st);
-                    } catch (NoSuchMethodException e) {
-                        try {
-                            Object st = tObj.getClass().getMethod("getCurrStatus").invoke(tObj);
-                            rawStatus = st == null ? null : String.valueOf(st);
-                        } catch (NoSuchMethodException ex) {
-                            rawStatus = null;
-                        }
-                    }
-                } catch (Exception ex) {
-                    // if reflection fails, skip that object
-                    continue;
-                }
+                if (!seen.add(ticketId)) continue; // dedupe within this secondary
 
-                if (id == null) continue;
-                if (!seen.add(id)) continue; // skip duplicate id inside same secondary
+                String rawStatus = ticket.getCurrStatus() == null ? "" : ticket.getCurrStatus().trim();
+                String currentAssignee = ticket.getCurrentAssignee() == null ? "" : ticket.getCurrentAssignee().trim();
+                String ticketRequester = ticket.getTicketRequester() == null ? "" : ticket.getTicketRequester().trim();
 
                 String key = normalizeStatus(rawStatus);
-                // ensure canonical mapping for some keys
-                if (!stats.containsKey(key)) {
-                    // if not recognized, try convert "inprogress" => in_progress
-                    if (key.equals("inprogress")) key = "in_progress";
-                    if (!stats.containsKey(key)) key = "open";
+                ticketStatusMap.put(ticketId, key);
+
+                boolean assigneeIsUser = username != null && !username.isEmpty() && currentAssignee.equalsIgnoreCase(username);
+                boolean requesterIsUser = username != null && !username.isEmpty() && ticketRequester.equalsIgnoreCase(username);
+
+                // Assigned-like statuses: only count as assigned for this user if they are the current assignee
+                if ("assigned".equals(key) || "re_assigned".equals(key) || "referred_back".equals(key)) {
+                    if (assigneeIsUser) {
+                        stats.put("assigned", stats.getOrDefault("assigned", 0) + 1);
+                    } else {
+                        // keep it in open for user's view (so user's assigned KPI doesn't inflate)
+                        stats.put("open", stats.getOrDefault("open", 0) + 1);
+                    }
+                } else if ("in_progress".equals(key)) {
+                    if (assigneeIsUser) {
+                        // treat the user's in-progress tickets as assigned for their KPI
+                        stats.put("assigned", stats.getOrDefault("assigned", 0) + 1);
+                    } else {
+                        stats.put("in_progress", stats.getOrDefault("in_progress", 0) + 1);
+                    }
+                } else if ("resolved".equals(key) || "closed".equals(key) || "escalated".equals(key)) {
+                    stats.put(key, stats.getOrDefault(key, 0) + 1);
+                } else {
+                    // default: open
+                    // Per your requirement: open tickets meaning includes ticketRequester or currentAssignee matching username
+                    // but for building the module stats for the user we still increment open globally
+                    stats.put("open", stats.getOrDefault("open", 0) + 1);
                 }
 
-                stats.put(key, stats.getOrDefault(key, 0) + 1);
-                ticketStatusMap.put(id, key);
+                currentAssigneeMap.put(ticket.getTicketId(), ticket.getCurrentAssignee());
+                ticketRequesterMap.put(ticket.getTicketId(), ticket.getTicketRequester());
             }
         }
 
-        // compute total as sum of canonical buckets
+        // compute total
         int total = stats.values().stream().mapToInt(Integer::intValue).sum();
         stats.put("total", total);
 
-        // tickets list shape
         List<TicketCountDto> ticketCounts = stats.entrySet().stream()
                 .map(e -> new TicketCountDto(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
@@ -129,14 +150,14 @@ public class DashboardBuilderService {
         dto.setStats(stats);
         dto.setTickets(ticketCounts);
         dto.setTicketIds(new LinkedHashSet<>(seen));
+        dto.setCurrentAssignees(currentAssigneeMap);
+        dto.setTicketRequesters(ticketRequesterMap);
 
-        // attach ticketStatusMap in extra for aggregator to use across modules
         Map<String, Object> ex = dto.getExtra();
         ex.put("ticketStatusMap", ticketStatusMap);
         ex.put("ticketIds", new ArrayList<>(seen));
         dto.setExtra(ex);
 
-        // simple health heuristic: if no tickets -> 100, else percent resolved/closed
         int resolved = stats.getOrDefault("resolved", 0);
         int closed = stats.getOrDefault("closed", 0);
         int healthScore = total == 0 ? 100 : Math.round(((resolved + closed) / (float) total) * 100);
@@ -146,4 +167,3 @@ public class DashboardBuilderService {
         return dto;
     }
 }
-

@@ -80,4 +80,14 @@ public class AdminController {
             return null;
         }
     }
+
+    @GetMapping("user-insights")
+    public ResponseEntity<ResponseDto> getUserInsights(@RequestParam("username") String username) {
+
+        try {
+            return iSysNeoMap.getUserInsights(username);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

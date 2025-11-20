@@ -23,7 +23,7 @@ public class QuadCard extends BaseEntity {
     @Column(name = "name")
     private String name;
 
-    @Column(name = "shortName")
+    @Column(name = "short_Name")
     private String shortName;
 
     @Column(name = "description")

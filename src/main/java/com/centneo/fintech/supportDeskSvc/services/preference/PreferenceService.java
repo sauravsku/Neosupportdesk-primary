@@ -193,6 +193,7 @@ public class PreferenceService implements IPreference {
     }
 
     @Override
+    @Transactional
     public ResponseEntity<ResponseDto> getIssueDetailsData(Long sid) {
 
         try {
@@ -211,6 +212,7 @@ public class PreferenceService implements IPreference {
 
             // Fetch secondary cards for this primary id
             List<IssueDetail> issueDetailList = issueDetailRepositoryReadOnly.findAllBySecondaryCardSid(sid);
+            issueDetailList.forEach(i -> i.getIssueSubDetails().size());
 
             // Remove issueDetails as not required
             //issueDetailList.forEach(card -> card.setIssueSubDetails(null));
@@ -337,6 +339,11 @@ public class PreferenceService implements IPreference {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public String getSsoName(String ssoId) {
+        return getSsoNameFromAuthSvc(ssoId);
     }
 
 
@@ -701,6 +708,26 @@ public class PreferenceService implements IPreference {
                         .map(String::trim)
                         .map(Long::parseLong)
                         .collect(Collectors.toList());
+            } else {
+                throw new RuntimeException("API returned failure: " + body.getMessage());
+            }
+        } else {
+            throw new RuntimeException("Failed to fetch user journey: " + response.getStatusCode());
+        }
+    }
+
+    private String getSsoNameFromAuthSvc(String ssoId) {
+        // Call external API to get journey data
+        String apiUrl = BASE_URL + "/getSsoName?ssoId=" + ssoId;
+
+        ResponseEntity<ResponseDto> response = restTemplate.getForEntity(apiUrl, ResponseDto.class);
+
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            ResponseDto body = response.getBody();
+
+            if (body.isSuccess() && body.getData() != null) {
+                String dataStr = body.getData().toString().trim();
+                return dataStr;
             } else {
                 throw new RuntimeException("API returned failure: " + body.getMessage());
             }

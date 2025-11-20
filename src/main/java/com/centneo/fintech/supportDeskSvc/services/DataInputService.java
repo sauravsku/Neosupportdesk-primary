@@ -158,7 +158,7 @@ public class DataInputService implements IDataInput {
                     issueDetail.setTertiaryCard(tertiaryCard);
                 }
 
-                if (dto.sid() != null) {
+                if (dto.fid() != null) {
                     QuadCard quadCard = quadCardRepository.findById(dto.fid())
                             .orElseThrow(() -> new RuntimeException("QuadCard not found for fid: " + dto.fid()));
                     issueDetail.setQuadCard(quadCard);
@@ -270,7 +270,7 @@ public class DataInputService implements IDataInput {
 
         ResponseDto responseDto  = new ResponseDto();
         try {
-            List<EscalationHistory> historyList = escalationHistoryRepositoryReadOnly.findByEscalatedBy(username);
+            List<EscalationHistory> historyList = escalationHistoryRepositoryReadOnly.findByAssigneeAfterEquals(username);
 
             responseDto.setStatus(200);
             responseDto.setMessage("Escalation history fetched successfully");

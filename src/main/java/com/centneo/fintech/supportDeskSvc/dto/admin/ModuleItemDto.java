@@ -25,4 +25,6 @@ public class ModuleItemDto {
 
     // convenience: explicit ticketIds field (optional; still keep in extra for backward compat)
     private Set<String> ticketIds;
+    private Map<String, String> currentAssignees;
+    private Map<String, String> ticketRequesters;
 }

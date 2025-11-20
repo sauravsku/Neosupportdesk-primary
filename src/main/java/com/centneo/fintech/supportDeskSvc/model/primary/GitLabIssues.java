@@ -54,6 +54,9 @@ public class GitLabIssues extends BaseEntity {
     @Column(name = "assignee_id")
     private Long assigneeId;
 
+    @Column(name = "assignee_name")
+    private String assigneeName;
+
     @Column(name = "issue_status")
     private String issueStatus;
 

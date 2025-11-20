@@ -20,4 +20,6 @@ public interface ISysNeoMap {
     ResponseEntity<ResponseDto> getStagesCount(String username);
 
     ResponseEntity<ResponseDto> getDashboardData(String username);
+
+    ResponseEntity<ResponseDto> getUserInsights(String username);
 }

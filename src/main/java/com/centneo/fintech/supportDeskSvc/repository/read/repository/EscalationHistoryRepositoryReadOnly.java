@@ -17,6 +17,8 @@ public interface EscalationHistoryRepositoryReadOnly extends EscalationHistoryRe
 
     List<EscalationHistory> findByEscalatedBy(String username);
 
+    List<EscalationHistory> findByAssigneeAfterEquals(String username);
+
     Optional<EscalationHistory> findByTicketId(String ticketId);
 
     List<EscalationHistory> findByAssigneeBeforeEquals(String assigneeBefore);

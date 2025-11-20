@@ -1,5 +1,6 @@
 package com.centneo.fintech.supportDeskSvc.services.admin;
 
+import com.centneo.fintech.supportDeskSvc.dto.DashboardInsightsDto;
 import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
 import com.centneo.fintech.supportDeskSvc.dto.admin.BranchSearchDto;
 import com.centneo.fintech.supportDeskSvc.dto.admin.CnsdMapDto;
@@ -16,8 +17,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -242,10 +245,10 @@ public class SysNeoMapService implements ISysNeoMap {
 
             // ensure all expected keys exist and preserve order
             List<String> expected = Arrays.asList("new", "assigned", "in_progress", "escalated", "resolved", "closed",
-                    "reopened");
+                    "referred_back");
             Map<String, Long> result = new LinkedHashMap<>();
             for (String k : expected) {
-                result.put(k, grouped.getOrDefault(k, 0L));
+                    result.put(k, grouped.getOrDefault(k, 0L));
             }
             result.put("totalTickets", tickets.stream().count());
 
@@ -262,21 +265,49 @@ public class SysNeoMapService implements ISysNeoMap {
 
     @Override
     public ResponseEntity<ResponseDto> getDashboardData(String username) {
-
         try {
             List<PrimaryCard> primaryCardList = primaryCardRepositoryReadOnly.findAll();
-
             List<ModuleItemDto> moduleItemDtos = new ArrayList<>();
 
-            // collect all secondary SIDs to avoid N+1 (improvement)
+            // 1) Collect all secondaries to avoid N+1.
+            List<SecondaryCard> allSecondaries = new ArrayList<>();
+            for (PrimaryCard primaryCard : primaryCardList) {
+                List<SecondaryCard> secondaryCardList = secondaryCardRepositoryReadOnly
+                        .findAllByPrimaryCardPid(primaryCard.getPid());
+                if (secondaryCardList != null && !secondaryCardList.isEmpty()) {
+                    allSecondaries.addAll(secondaryCardList);
+                }
+            }
+
+            if (allSecondaries.isEmpty()) {
+                DashboardData dashboardData = moduleAggregatorService.buildDashboardFromModuleItems(moduleItemDtos, username);
+                ResponseDto dto = new ResponseDto(true, "Success", dashboardData, 200);
+                return ResponseEntity.status(HttpStatus.OK).body(dto);
+            }
+
+            // Build SID list
+            List<String> allSids = allSecondaries.stream()
+                    .map(s -> String.valueOf(s.getSid()))
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // Batch fetch tickets for all SIDs
+            List<Tickets> allTickets = ticketRepositoryReadOnly.findBySidInAndRequesterOrAssignee(allSids, username);
+            if (allTickets == null) allTickets = Collections.emptyList();
+
+            // Group by sid
+            Map<String, List<Tickets>> ticketsBySid = allTickets.stream()
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.groupingBy(t -> String.valueOf(t.getSid()), LinkedHashMap::new, Collectors.toList()));
+
+            // Build module items per secondary using grouped tickets
             for (PrimaryCard primaryCard : primaryCardList) {
                 List<SecondaryCard> secondaryCardList = secondaryCardRepositoryReadOnly
                         .findAllByPrimaryCardPid(primaryCard.getPid());
 
                 for (SecondaryCard secondaryCard : secondaryCardList) {
-                    // fetch tickets for secondary (prefer batch queries if possible)
-                    List<Tickets> tickets = ticketRepositoryReadOnly
-                            .findBySidAndTicketRequester(secondaryCard.getSid().toString(), username);
+                    String sidStr = String.valueOf(secondaryCard.getSid());
+                    List<Tickets> tickets = ticketsBySid.getOrDefault(sidStr, Collections.emptyList());
 
                     Map<String, Object> extra = new HashMap<>();
                     extra.put("primaryPid", primaryCard.getPid());
@@ -289,25 +320,95 @@ public class SysNeoMapService implements ISysNeoMap {
                             primaryCard.getDescription(),
                             primaryCard.getPath(),
                             tickets,
-                            extra
+                            extra,
+                            username
                     );
 
                     moduleItemDtos.add(moduleItemDto);
                 }
             }
 
-            // now aggregate into one DashboardData (deduped)
-            DashboardData dashboardData = moduleAggregatorService.buildDashboardFromModuleItems(moduleItemDtos);
-
+            // Aggregate and return
+            DashboardData dashboardData = moduleAggregatorService.buildDashboardFromModuleItems(moduleItemDtos,username);
             ResponseDto dto = new ResponseDto(true, "Success", dashboardData, 200);
             return ResponseEntity.status(HttpStatus.OK).body(dto);
 
         } catch (Exception e) {
-            // logger
+            e.printStackTrace();
             ResponseDto dto = new ResponseDto(false, "Internal server error", Collections.emptyMap(), 500);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
         }
     }
+
+
+    /**
+     * Compute insights and return ResponseEntity<ResponseDto>.
+     * Username param is kept for compatibility; add scoping logic if you want to limit stats to a user.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDto> getUserInsights(String username) {
+
+        DashboardInsightsDto dto = new DashboardInsightsDto();
+
+        // 2) avg response minutes
+        Double avgResp = ticketRepositoryReadOnly.findAvgResponseMinsNative(username);
+        avgResp = avgResp == null ? 0.0 : Math.round(avgResp * 100.0) / 100.0;
+        dto.setAvgResponseMins(avgResp == null ? 0.0 : avgResp);
+
+        // 3) mttr (minutes)
+        Double mttr = ticketRepositoryReadOnly.findAvgMttrMinsNative(username);
+        mttr = mttr == null ? 0.0 : Math.round(mttr * 100.0) / 100.0;
+        dto.setMttrMins(mttr == null ? 0.0 : mttr);
+
+        // 4) sla breaches
+        Integer breaches = ticketRepositoryReadOnly.countSlaBreachesNative(username);
+        dto.setSlaBreaches(breaches == null ? 0 : breaches);
+
+        // 5) trends - tickets created per day last 7 days
+        List<Object[]> rows = ticketRepositoryReadOnly.findTicketsPerDayLast7Native(username);
+        List<Integer> trends = rows.stream()
+                .map(row -> {
+                    if (row == null || row.length < 2 || row[1] == null) return 0;
+                    Object countObj = row[1];
+
+                    if (countObj instanceof Number) {
+                        return ((Number) countObj).intValue();
+                    } else if (countObj instanceof String) {
+                        try {
+                            return Integer.parseInt((String) countObj);
+                        } catch (NumberFormatException ex) {
+                            return 0;
+                        }
+                    } else if (countObj instanceof BigDecimal) {
+                        return ((BigDecimal) countObj).intValue();
+                    } else {
+                        try {
+                            return Integer.parseInt(countObj.toString());
+                        } catch (Exception ex) {
+                            return 0;
+                        }
+                    }
+                })
+                .collect(Collectors.toList());
+
+        // Ensure length is 7 (fallback to zeros if native query returned nothing)
+        if (trends == null || trends.size() == 0) {
+            trends = List.of(0, 0, 0, 0, 0, 0, 0);
+        } else if (trends.size() < 7) {
+            // pad left with zeros if necessary (shouldn't happen with generate_series, but safe)
+            int pad = 7 - trends.size();
+            List<Integer> padded = List.copyOf(List.of(new Integer[0])); // placeholder
+            padded = java.util.stream.Stream.concat(java.util.stream.Stream.generate(() -> 0).limit(pad), trends.stream()).collect(Collectors.toList());
+            trends = padded;
+        }
+
+        dto.setTrends(trends);
+
+        ResponseDto response = new ResponseDto(true, "Stage counts fetched", dto, 200);
+        return ResponseEntity.ok(response);
+    }
+
 
 
     /**
@@ -325,7 +426,7 @@ public class SysNeoMapService implements ISysNeoMap {
         if (s.equals("escalated") || s.startsWith("escalat")) return "escalated";
         if (s.equals("resolved") || s.equals("resolve") || s.equals("fixed")) return "resolved";
         if (s.equals("closed") || s.equals("close")) return "closed";
-        if (s.equals("reopened") || s.equals("reopen")) return "reopened";
+        if (s.equals("referred back") || s.equals("referred_back")) return "referred_back";
 
         // heuristic fallbacks
         if (s.contains("assign")) return "assigned";
