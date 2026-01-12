@@ -1174,6 +1174,8 @@ public class TicketService implements ITicket {
                    ticketComments.setParent(ticketComments1.get());
             }
             TicketComments savedComment = ticketCommentRepository.save(ticketComments);
+            addAuditEntryForComments(savedComment.getTicket().getTicketId(), savedComment.getAuthorId(), savedComment.getAuthorRole(),
+                    savedComment.getComment(), savedComment.getCreatedAt());
             syncService.syncLastUpdatedByTicketId(savedComment.getTicket().getTicketId(), istTime.toLocalDateTime());
             ResponseDto ok = new ResponseDto(true, "Comments added successfully", savedComment, 200);
             return ResponseEntity.ok(ok);
@@ -1186,6 +1188,22 @@ public class TicketService implements ITicket {
             );
             return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
         }
+    }
+
+    private void addAuditEntryForComments(String ticketId, String authorId, String authorRole, String comment, LocalDateTime createdAt) {
+
+        Tickets saved = ticketRepositoryReadOnly.findByTicketId(ticketId).get();
+        String activity = "Comment by "
+                + authorId
+                + "("
+                + authorRole
+                + ")"
+                + " due to "
+                + comment
+                + " at "
+                + createdAt;
+
+        auditServiceI.createAuditLog(saved, TicketStatusEnum.RESOLVED.getCode(), activity);
     }
 
     @Override
@@ -1335,4 +1353,5 @@ public class TicketService implements ITicket {
         log.info("Created module request={}", moduleRequestDto.toString());
         return moduleRequestDto;
     }
+
 }

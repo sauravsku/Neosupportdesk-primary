@@ -43,6 +43,8 @@ public class TicketCommentService {
         comment.setInternal(req.internal() == null ? false : req.internal());
 
         TicketComments saved = ticketCommentRepository.save(comment);
+
+
         return null;
     }
 
