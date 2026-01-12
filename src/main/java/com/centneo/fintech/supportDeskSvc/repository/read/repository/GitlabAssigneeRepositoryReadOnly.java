@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface GitlabAssigneeRepositoryReadOnly extends GitlabAssigneeRepository {
 
     List<GitlabAssignee> findByPid(Long aLong);
+
+    List<GitlabAssignee> findByPidAndSid(Long aLong, Long sid);
 }

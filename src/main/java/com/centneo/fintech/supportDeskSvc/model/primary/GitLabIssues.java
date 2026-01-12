@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Entity
@@ -51,8 +52,8 @@ public class GitLabIssues extends BaseEntity {
     @Column(name = "web_url")
     private String webUrl;
 
-    @Column(name = "assignee_id")
-    private Long assigneeId;
+    @Column(name = "gitlab_uid")
+    private Long gitLabUserId;
 
     @Column(name = "assignee_name")
     private String assigneeName;
@@ -60,7 +61,17 @@ public class GitLabIssues extends BaseEntity {
     @Column(name = "issue_status")
     private String issueStatus;
 
+    @Column(name = "curr_level")
+    private String currLevel;
+
+    @Column(name = "closed_at")
+    private LocalDateTime closedAt;
+
     @Column(name = "gitlab_updated_at")
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date gitlabUpdatedAt;
+    private LocalDateTime gitlabUpdatedAt;
+
+    @Lob
+    @Column(name = "gitlab_audit", columnDefinition = "CLOB")
+    private String gitlabAudits;
+
 }

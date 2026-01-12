@@ -1,5 +1,6 @@
 package com.centneo.fintech.supportDeskSvc.model.primary;
 
+import com.centneo.fintech.supportDeskSvc.util.StringListConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,8 +27,10 @@ public class FaqDetails extends BaseEntity {
     private String answer;
 
     @Column(name = "category")
+    @Convert(converter = StringListConverter.class)
     private List<String> categories;
 
     @Column(name = "related_link")
+    @Convert(converter = StringListConverter.class)
     private List<String> related;
 }

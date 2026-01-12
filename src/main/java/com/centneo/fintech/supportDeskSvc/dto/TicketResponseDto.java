@@ -57,7 +57,10 @@ public class TicketResponseDto {
     private Integer slaDays;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
-    private LocalDateTime slaDueDatetime;
+    private LocalDateTime slaStartDueDatetime;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime slaEndDueDatetime;
 
     private String escalationPath;
     private String branchCode;
@@ -102,7 +105,8 @@ public class TicketResponseDto {
                 .currentEscLevel(t.getCurrentEscLevel())
                 .currTat(t.getCurrTat())
                 .slaDays(t.getSlaDays())
-                .slaDueDatetime(t.getSlaDueDatetime())
+                .slaStartDueDatetime(t.getSlaStartDueDatetime())
+                .slaEndDueDatetime(t.getSlaEndDueDatetime())
                 .escalationPath(t.getEscalationPath())
                 .branchCode(t.getBranchCode())
                 .resolutionNote(t.getResolutionNote())

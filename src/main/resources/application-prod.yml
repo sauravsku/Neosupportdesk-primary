@@ -1,13 +1,13 @@
 spring:
-   datasource:
+  datasource:
     read:
-      url: jdbc:oracle:thin:@//10.1.8.209:1522/FINDB
-      username: NEOSUPPORTDESK_PRIMARY
-      password: cnsd_pwd01
+      url: ${JDBC_DATASOURCE_URL}
+      username: ${JDBC_PRIMARY_RW_USERNAME}
+      password: ${JDBC_PRIMARY_RW_PWD}
       driver-class-name: oracle.jdbc.OracleDriver
       hikari:
         poolName: slavePool
-        maximumPoolSize: 50        # lowered for DB safety
+        maximumPoolSize: 50
         minimumIdle: 5
         idleTimeout: 60000
         connectionTimeout: 30000
@@ -19,13 +19,13 @@ spring:
         initializationFailTimeout: 1
 
     write:
-      url: jdbc:oracle:thin:@//10.1.8.209:1522/FINDB
-      username: NEOSUPPORTDESK_PRIMARY
-      password: cnsd_pwd01
+      url: ${JDBC_DATASOURCE_URL}
+      username: ${JDBC_PRIMARY_RW_USERNAME}
+      password: ${JDBC_PRIMARY_RW_PWD}
       driver-class-name: oracle.jdbc.OracleDriver
       hikari:
         poolName: masterPool
-        maximumPoolSize: 50        # lowered for DB safety
+        maximumPoolSize: 50
         minimumIdle: 5
         idleTimeout: 60000
         connectionTimeout: 30000
@@ -36,21 +36,14 @@ spring:
         leakDetectionThreshold: 2000
         initializationFailTimeout: 1
 
-jpa:
+  jpa:
     hibernate:
       ddl-auto: update
       naming:
         implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.Oracle12cDialect
         format_sql: true
-
-# Optional: only if you need Spring to run schema/data SQL scripts at startup
-# Remove or comment out if data already exists
-# spring:
-#   sql:
-#     init:
-#       mode: never

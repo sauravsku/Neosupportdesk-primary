@@ -17,6 +17,9 @@ public class GitlabAssignee {
     @Column(name = "pid_ref")
     private Long pid;
 
+    @Column(name = "sec_ref")
+    private Long sid;
+
     @Column(name = "module_assigned")
     private String moduleAssigned;
 
@@ -31,4 +34,7 @@ public class GitlabAssignee {
 
     @Column(name = "metadata")
     private String metadata;
+
+    @Column(name = "project_id")
+    private String projectId;
 }

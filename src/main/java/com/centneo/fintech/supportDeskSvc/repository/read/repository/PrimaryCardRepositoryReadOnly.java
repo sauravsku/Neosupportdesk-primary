@@ -21,4 +21,6 @@ public interface PrimaryCardRepositoryReadOnly extends PrimaryCardRepository {
 
     @Query("SELECT p FROM PrimaryCard p WHERE p.path=:path")
     Optional<PrimaryCard> findByPath(String path);
+
+    Optional<PrimaryCard> findByJourneyId(Long journeyId);
 }

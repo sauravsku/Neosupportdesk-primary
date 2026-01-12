@@ -49,8 +49,8 @@ public class EscalationService implements IEscalationService {
 
         Long slaRemainingMinutes = null;
         try {
-            if (ticket.getSlaDueDatetime() != null) {
-                slaRemainingMinutes = Duration.between(LocalDateTime.now(), ticket.getSlaDueDatetime()).toMinutes();
+            if (ticket.getSlaEndDueDatetime() != null) {
+                slaRemainingMinutes = Duration.between(LocalDateTime.now(), ticket.getSlaEndDueDatetime()).toMinutes();
             }
         } catch (Exception e) {
             log.debug("Unable to compute SLA remaining minutes for ticket {}: {}", ticketId, e.getMessage());

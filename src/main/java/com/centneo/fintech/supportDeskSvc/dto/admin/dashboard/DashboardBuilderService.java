@@ -122,6 +122,7 @@ public class DashboardBuilderService {
                     if (assigneeIsUser) {
                         // treat the user's in-progress tickets as assigned for their KPI
                         stats.put("assigned", stats.getOrDefault("assigned", 0) + 1);
+                        stats.put("in_progress", stats.getOrDefault("in_progress", 0) + 1);
                     } else {
                         stats.put("in_progress", stats.getOrDefault("in_progress", 0) + 1);
                     }

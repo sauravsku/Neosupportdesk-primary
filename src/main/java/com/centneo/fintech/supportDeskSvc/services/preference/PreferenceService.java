@@ -5,6 +5,7 @@ import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.ActionsRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.PrimaryCardRepository;
+import com.centneo.fintech.supportDeskSvc.services.external.PrimaryApiSvc;
 import com.centneo.fintech.supportDeskSvc.services.notification.AnalyticsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,10 +57,7 @@ public class PreferenceService implements IPreference {
     private NotificationRepositoryReadOnly notificationRepositoryReadOnly;
 
     @Autowired
-    private RestTemplate restTemplate;
-
-    @Value("${supportDeskAuthSvc.base-url}")
-    private String BASE_URL;
+    private PrimaryApiSvc primaryApiSvc;
 
     /**
      * Fetches user journey data based on journeyId.
@@ -92,7 +90,7 @@ public class PreferenceService implements IPreference {
     public ResponseEntity<ResponseDto> getPrimaryData(String username) {
         try {
             // Fetch journey IDs for the user
-            List<Long> journeyIds = getUserJourneyIds(username);
+            List<Long> journeyIds = primaryApiSvc.getUserJourneyIds(username);
 
             if (journeyIds == null || journeyIds.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -343,8 +341,22 @@ public class PreferenceService implements IPreference {
 
     @Override
     public String getSsoName(String ssoId) {
-        return getSsoNameFromAuthSvc(ssoId);
+        return primaryApiSvc.getSsoNameFromAuthSvc(ssoId);
     }
+
+    @Override
+    public ResponseEntity<ResponseDto> getPriRefIdFromJourneyId(Long journeyId) {
+
+        Optional<PrimaryCard> primaryCard = primaryCardRepositoryReadOnly.findByJourneyId(journeyId);
+
+        return ResponseEntity.ok(
+                new ResponseDto(
+                        true,
+                        "Success",
+                        primaryCard.get().getPid(),
+                        HttpStatus.OK.value()
+                ));
+    };
 
 
     public ResponseEntity<ResponseDto> getActionsData(Character mode) {
@@ -681,59 +693,6 @@ public class PreferenceService implements IPreference {
                 .map(String::trim)
                 .filter(t -> !t.isBlank())
                 .collect(Collectors.toList());
-    }
-
-
-    private List<Long> getUserJourneyIds(String username) {
-        // Call external API to get journey data
-        String apiUrl = BASE_URL + "/getUserJourney?ssoId=" + username;
-
-        ResponseEntity<ResponseDto> response = restTemplate.getForEntity(apiUrl, ResponseDto.class);
-
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            ResponseDto body = response.getBody();
-
-            if (body.isSuccess() && body.getData() != null) {
-                // Convert "[1003]" or "1003,1004" to List<Long>
-                String dataStr = body.getData().toString().trim();
-
-                // Remove square brackets if present
-                dataStr = dataStr.replaceAll("\\[|\\]", "");
-
-                if (dataStr.isEmpty()) {
-                    return List.of();
-                }
-
-                return Arrays.stream(dataStr.split(","))
-                        .map(String::trim)
-                        .map(Long::parseLong)
-                        .collect(Collectors.toList());
-            } else {
-                throw new RuntimeException("API returned failure: " + body.getMessage());
-            }
-        } else {
-            throw new RuntimeException("Failed to fetch user journey: " + response.getStatusCode());
-        }
-    }
-
-    private String getSsoNameFromAuthSvc(String ssoId) {
-        // Call external API to get journey data
-        String apiUrl = BASE_URL + "/getSsoName?ssoId=" + ssoId;
-
-        ResponseEntity<ResponseDto> response = restTemplate.getForEntity(apiUrl, ResponseDto.class);
-
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            ResponseDto body = response.getBody();
-
-            if (body.isSuccess() && body.getData() != null) {
-                String dataStr = body.getData().toString().trim();
-                return dataStr;
-            } else {
-                throw new RuntimeException("API returned failure: " + body.getMessage());
-            }
-        } else {
-            throw new RuntimeException("Failed to fetch user journey: " + response.getStatusCode());
-        }
     }
 
 }

@@ -7,6 +7,8 @@ import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationH
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.PrimaryCardRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.QuadCardRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.*;
+import com.centneo.fintech.supportDeskSvc.services.businessRules.SyncService;
+import lombok.AllArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@AllArgsConstructor
 public class DataInputService implements IDataInput {
 
     private final PrimaryCardRepository primaryCardRepository;
@@ -37,25 +40,7 @@ public class DataInputService implements IDataInput {
     private final ActionsRepository actionsRepository;
     private final BranchMasterRepository branchMasterRepository;
     private final FaqDetailRepository faqDetailRepository;
-
-    public DataInputService(
-            PrimaryCardRepository primaryCardRepository,
-            SecondaryCardRepository secondaryCardRepository, TertiaryCardRepository tertiaryCardRepository, QuadCardRepository quadCardRepository, QuadCardRepositoryReadOnly quadCardRepositoryReadOnly,
-            IssueDetailRepository issueDetailRepository,
-            IssueSubDetailRepository issueSubDetailRepository, PrimaryCardRepositoryReadOnly primaryCardRepositoryReadOnly, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, ActionsRepository actionsRepository, BranchMasterRepository branchMasterRepository, FaqDetailRepository faqDetailRepository) {
-        this.primaryCardRepository = primaryCardRepository;
-        this.secondaryCardRepository = secondaryCardRepository;
-        this.tertiaryCardRepository = tertiaryCardRepository;
-        this.quadCardRepository = quadCardRepository;
-        this.quadCardRepositoryReadOnly = quadCardRepositoryReadOnly;
-        this.issueDetailRepository = issueDetailRepository;
-        this.issueSubDetailRepository = issueSubDetailRepository;
-        this.primaryCardRepositoryReadOnly = primaryCardRepositoryReadOnly;
-        this.escalationHistoryRepositoryReadOnly = escalationHistoryRepositoryReadOnly;
-        this.actionsRepository = actionsRepository;
-        this.branchMasterRepository = branchMasterRepository;
-        this.faqDetailRepository = faqDetailRepository;
-    }
+    private final SyncService syncService;
 
     @Override
     @Transactional
@@ -270,7 +255,15 @@ public class DataInputService implements IDataInput {
 
         ResponseDto responseDto  = new ResponseDto();
         try {
+
             List<EscalationHistory> historyList = escalationHistoryRepositoryReadOnly.findByAssigneeAfterEquals(username);
+
+            //Sync current status.
+            historyList.stream().forEach(item -> {
+                syncService.syncEscalationByTicketId(item.getTicketId());
+            });
+
+            historyList = escalationHistoryRepositoryReadOnly.findByAssigneeAfterEquals(username);
 
             responseDto.setStatus(200);
             responseDto.setMessage("Escalation history fetched successfully");

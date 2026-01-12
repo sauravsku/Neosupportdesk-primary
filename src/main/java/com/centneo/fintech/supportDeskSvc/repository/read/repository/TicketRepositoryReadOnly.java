@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TicketRepositoryReadOnly extends TicketsRepository {
@@ -71,36 +72,53 @@ public interface TicketRepositoryReadOnly extends TicketsRepository {
      * Average first-response time in minutes using CREATED_AT - LOGGED_DT
      */
     @Query(value =
-            "SELECT AVG( (CAST(t.created_at AS DATE) - CAST(t.logged_dt AS DATE)) * 24 * 60 ) " +
-                    "FROM tickets t " +
-                    "WHERE t.created_at IS NOT NULL " +
-                    "AND t.ticket_requester = :username",
+            "SELECT NVL(AVG((CAST(fc.first_response_at AS DATE) - CAST(t.logged_dt AS DATE)) * 24 * 60), 0) " +
+                    "FROM TICKETS t " +
+                    "JOIN ( " +
+                    "  SELECT ticket_id, created_at AS first_response_at FROM ( " +
+                    "    SELECT tc.ticket_id, tc.created_at, " +
+                    "           ROW_NUMBER() OVER (PARTITION BY tc.ticket_id ORDER BY tc.created_at) rn " +
+                    "    FROM TICKET_COMMENTS tc " +
+                    "    JOIN TICKETS t2 ON t2.TICKET_ID = tc.TICKET_ID " +
+                    "    WHERE tc.AUTHOR_ID IS NOT NULL " +
+                    "      AND tc.AUTHOR_ID <> t2.TICKET_REQUESTER " +
+                    "  ) inner_tc WHERE rn = 1 " +
+                    ") fc ON fc.ticket_id = t.TICKET_ID " +
+                    "WHERE t.logged_dt IS NOT NULL " +
+                    "  AND t.ticket_requester = :username",
             nativeQuery = true)
     Double findAvgResponseMinsNative(@Param("username") String username);
+
 
 
     /**
      * Average MTTR in minutes (only resolved tickets).
      */
-    @Query(value =
-            "SELECT AVG( (CAST(t.resolved_dt AS DATE) - CAST(t.created_at AS DATE)) * 24 * 60 ) " +
-                    "FROM tickets t " +
-                    "WHERE t.resolved_dt IS NOT NULL " +
-                    "AND t.ticket_requester = :username",
-            nativeQuery = true)
+    @Query(
+            value =
+                    "SELECT NVL(AVG((CAST(t.resolved_dt AS DATE) - CAST(t.logged_dt AS DATE)) * 24 * 60), 0) " +
+                            "FROM TICKETS t " +
+                            "WHERE t.resolved_dt IS NOT NULL " +
+                            "  AND t.logged_dt IS NOT NULL " +
+                            "  AND t.ticket_requester = :username",
+            nativeQuery = true
+    )
     Double findAvgMttrMinsNative(@Param("username") String username);
+
 
 
     /**
      * Count SLA breaches using BREACHED_FLAG (NUMBER(1,0) where 1 = breached)
      */
-    @Query(value =
-            "SELECT COUNT(*) " +
+    @Query(
+            value = "SELECT COUNT(*) " +
                     "FROM tickets t " +
                     "WHERE t.breached_flag = 1 " +
                     "AND t.ticket_requester = :username",
-            nativeQuery = true)
-    Integer countSlaBreachesNative(@Param("username") String username);
+            nativeQuery = true
+    )
+    Long countSlaBreachesNative(@Param("username") String username);
+
 
 
     /**
@@ -124,4 +142,6 @@ public interface TicketRepositoryReadOnly extends TicketsRepository {
             nativeQuery = true)
     List<Object[]> findTicketsPerDayLast7Native(@Param("username") String username);
 
+
+    Optional<Tickets> findByTicketId(String ticketId);
 }

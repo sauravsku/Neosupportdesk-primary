@@ -12,7 +12,7 @@ import java.util.List;
 public class DashboardInsightsDto {
 
     private double avgResponseMins;
-    private int slaBreaches;
+    private Long slaBreaches;
     private double mttrMins;
     private List<Integer> trends;
 }

@@ -9,7 +9,7 @@ import java.time.Instant;
 @Builder
 public class AttachmentResponseDto {
     private String id;
-    private Long ticketId;
+    private String ticketId;
     private String fileName;
     private int version;
     private String s3Key;

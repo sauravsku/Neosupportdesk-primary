@@ -11,15 +11,22 @@ server:
   port: 9002
 
 supportDeskAuthSvc:
-  base-url: https://neosupportdesk.centralbank.bank.in/api/identity
+  base-url: ${AUTH_BASE_URL}
 
 gitlab:
-  token: glpat-z5YJoyyE8QGsdbpQu3LS
-  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
-  project-id: 1394
-  url: https://devsecops.centralbank.co.in
+  dlp:
+    token: ${GITLAB_DLP_ACCESS_TOKEN}
+  omni:
+    token: ${GITLAB_OMNI_ACCESS_TOKEN}
+  kyc:
+    token: ${GITLAB_KYC_ACCESS_TOKEN}
 
-  #https://gitlab.com
+  webhook-secret: ${GITLAB_WEBHOOK_SECRET}
+  url: ${GITLAB_URL}
+
+cors:
+  allowed_origins: ${CORS_ALLOWED_ORIGINS}
+
 
 # how often scheduler runs (ms)
 userSync:
@@ -41,12 +48,13 @@ jwt:
   issuer: centneo
 
 
-#  aws:
-#    region: us-east-1 # change to your region
-#    bucket: your-bucket-name # change to your bucket
-#    access-key: ${AWS_ACCESS_KEY:CHANGE_ME}
-#    secret-key: ${AWS_SECRET_KEY:CHANGE_ME}
-#    presign-expiration-minutes: 15
+aws:
+  endpoint-url: ${AWS_ENDPOINT_URL}
+  region: ${AWS_REGION} # change to your region
+  bucket: ${AWS_BUCKET_NAME} # change to your bucket
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  presign-expiration-minutes: 15
 
 
 logging:
@@ -56,9 +64,9 @@ logging:
     org.springframework.security: TRACE
     org.springframework.ldap: TRACE
     org.springframework.security.ldap: TRACE
-    org.hibernate.orm.jdbc.bind: TRACE
-    org.hibernate.type.descriptor.sql: TRACE
-    org.hibernate.loader.plan.exec.process.internal: TRACE
+    #org.hibernate.orm.jdbc.bind: TRACE
+    #org.hibernate.type.descriptor.sql: TRACE
+    #org.hibernate.loader.plan.exec.process.internal: TRACE
 
 
 spring:
@@ -74,15 +82,36 @@ server:
   port: 9003
 
 supportDeskAuthSvc:
-  base-url: http://localhost:9002/api/identity
+  base-url: http://localhost:9002/api
+
+#gitlab:
+#  token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km   #glpat-z5YJoyyE8QGsdbpQu3LS
+#  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
+#  project-id: 74943366
+#  url: https://gitlab.com #https://devsecops.centralbank.co.in
+#  #https://gitlab.com
 
 gitlab:
-  token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km   #glpat-z5YJoyyE8QGsdbpQu3LS
-  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
-  project-id: 74943366
-  url: https://gitlab.com #https://devsecops.centralbank.co.in
+  dlp:
+    token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km
+  omni:
+    token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km
+  kyc:
+    token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km
 
-  #https://gitlab.com
+  webhook-secret: xlput-Duhrwo-J8rGBmc0-bV-M728akjshdiuHIhjkCw.31.3218tggtl
+  url: https://gitlab.com
+
+aws:
+  endpoint-url: ${AWS_ENDPOINT_URL:https://centobject.cbi.co.in/}
+  region: us-east-1 # change to your region
+  bucket: your-bucket-name # change to your bucket
+  access-key: ${AWS_ACCESS_KEY:CHANGE_ME}
+  secret-key: ${AWS_SECRET_KEY:CHANGE_ME}
+  presign-expiration-minutes: 15
+
+cors:
+  allowed_origins: http://localhost:5173
 
 # how often scheduler runs (ms)
 userSync:

@@ -221,4 +221,15 @@ public class UserPreferenceController {
         }
     }
 
+    @GetMapping("getPriRefIdFromJourneyId")
+    public ResponseEntity<ResponseDto> getPriRefIdFromJourneyId(@RequestParam("journeyId") Long journeyId) {
+
+        try {
+            // Call service method that already returns ResponseEntity<ResponseDto>
+            return preference.getPriRefIdFromJourneyId(journeyId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
 }

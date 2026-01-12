@@ -1,9 +1,10 @@
 package com.centneo.fintech.supportDeskSvc.services.ticketSvc;
 
 import java.lang.reflect.Method;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -13,18 +14,26 @@ import com.centneo.fintech.supportDeskSvc.events.DashboardUpdateEvent;
 import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.*;
+import com.centneo.fintech.supportDeskSvc.services.attachments.AttachmentService;
+import com.centneo.fintech.supportDeskSvc.services.audit.AuditServiceI;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
+import com.centneo.fintech.supportDeskSvc.services.businessRules.SyncService;
+import com.centneo.fintech.supportDeskSvc.services.external.PrimaryApiSvc;
+import com.centneo.fintech.supportDeskSvc.services.gitlab.AbstractGitlabService;
+import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabServiceFactory;
 import com.centneo.fintech.supportDeskSvc.services.notification.AnalyticsService;
 import com.centneo.fintech.supportDeskSvc.services.notification.INotificationService;
+import com.centneo.fintech.supportDeskSvc.util.SlaDueComputeUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 
-import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabService;
 import jakarta.persistence.Column;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.gitlab4j.api.models.Issue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -32,10 +41,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class TicketService implements ITicket {
+
+    private static final Logger log = LoggerFactory.getLogger(TicketService.class);
 
     private final TicketsRepository ticketsRepository;
     private final TicketRepositoryReadOnly ticketRepositoryReadOnly;
@@ -54,36 +66,43 @@ public class TicketService implements ITicket {
     private final TicketCommentRepositoryReadOnly ticketCommentRepositoryReadOnly;
     private final BranchMasterReadOnly branchMasterReadOnly;
     private final ApplicationEventPublisher publisher;
-    private final GitlabService gitlabService;
     private final INotificationService iNotificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final AnalyticsService analyticsService;
+    private final GitlabServiceFactory gitlabServiceFactory;
+    private final AttachmentService attachmentService;
+    private final PrimaryApiSvc primaryApiSvc;
+    private final AuditServiceI auditServiceI;
+    private final SyncService syncService;
 
-    @Value("${gitlab.project-id}")
-    private String projectId;
 
     /**
      * Create ticket: derive initial assignee level + SLA from rules
      */
     @Override
     @Transactional
-    public ResponseEntity<ResponseDto> createNewTicket(NewTicketDto newTicketDto) {
+    public ResponseEntity<ResponseDto> createNewTicket(NewTicketDto newTicketDto, List<MultipartFile> attachments) {
 
         try {
             Tickets ticket = getTickets(newTicketDto);
 
             // fallbacks.
             String priority = ticket.getPriority() != null ? ticket.getPriority() : "MEDIUM";
-            String createdByLevel = ticket.getTicketRequesterSL() != null ? ticket.getTicketRequesterSL() : SupportLevelEnum.L1.getCode();
+            String createdByLevel = ticket.getTicketRequesterSL() != null ? ticket.getTicketRequesterSL() :
+                    SupportLevelEnum.L1.getCode();
 
             // resolve SLA rule.
+            log.info("Pre check SLA rule with priority {} and created by level {}", priority, createdByLevel);
             SlaEscalationRule rule = slaRuleService.resolveInitialRule(priority, createdByLevel).get();
+            log.info("Post check Resolved SLA rule is {}", rule);
 
             // set SLA and routing.
             ticket.setEscalationPath(rule.getEscalationPath());
+
             ticket.setCurrentEscLevel(rule.getInitialAssigneeLevel());
             ticket.setSlaDays(rule.getSlaDays());
-            ticket.setSlaDueDatetime(LocalDateTime.now().plusDays(rule.getSlaDays()));
+            ticket.setSlaStartDueDatetime( LocalDateTime.now());
+            ticket.setSlaEndDueDatetime(setSlaDueDateTime(rule.getSlaDays()));
             ticket.setCurrTat(rule.getSlaDays().longValue());
 
             // set initial status using enum.
@@ -94,17 +113,37 @@ public class TicketService implements ITicket {
             }
 
             Tickets savedTicket = ticketsRepository.save(ticket);
+            log.info("Ticket saved successfully, {}", savedTicket);
+
+            //Entry in. audit history
+            OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
+            String newTicketActivity = "New ticket created by " + savedTicket.getTicketRequester()
+                    .concat("("+ ticket.getTicketRequesterSL() +")")
+                    .concat(" at ").concat(istTime.toLocalDateTime().toString());
+            auditServiceI.createAuditLog(savedTicket, TicketStatusEnum.NEW.getCode(), newTicketActivity);
+            auditServiceI.createAuditLog(savedTicket, TicketStatusEnum.ASSIGNED.getCode(), null);
+
+            //uploading docs
+            if (attachments!=null && !attachments.isEmpty()) {
+                String ticketId = savedTicket.getTicketId();
+                attachments.stream().forEach(item -> {
+                    log.info("Uploading files to s3 bucket.... for ticket ID {}", ticketId);
+                    attachmentService.upload(ticketId, item);
+                });
+            }
+
 
             //set ticket assignees history
-            saveTicketAssigneeHistory(savedTicket);
+            TicketDetails ticketDetails = saveTicketAssigneeHistory(savedTicket);
+            log.info("Ticket details saved successfully, {}", ticketDetails);
 
             messagingTemplate.convertAndSend("/topic/counts/" + newTicketDto.ticketRequester(), analyticsService.syncData(newTicketDto.ticketRequester()));
-
 
             Integer actionId = Integer.parseInt(savedTicket.getActionId());
             if (ActionsEnum.fromCode(actionId) == ActionsEnum.GITLAB) {
 
                 if (newTicketDto.gitlab() != null) {
+                    log.info("Creating gitlab ticket...");
                     // build local GitLab entity (do not save remote metadata yet)
                     var gitLabIssue = new GitLabIssues();
                     gitLabIssue.setTicketId(savedTicket.getTicketId());
@@ -114,11 +153,13 @@ public class TicketService implements ITicket {
                     gitLabIssue.setIssueDescription(newTicketDto.gitlab().description());
 
                     // Build labels safely (skip null/blank values).
+                    String slaLabel = "Due in " + String.valueOf(savedTicket.getCurrTat()) + " days.";
                     String labels = Stream.of(
                                     gitLabIssue.getIssueLabel(),
                                     gitLabIssue.getIssueType(),
                                     savedTicket.getTicketId(),
-                                    savedTicket.getPriority()
+                                    savedTicket.getPriority(),
+                                    slaLabel
                             )
                             .filter(Objects::nonNull)
                             .map(Object::toString)
@@ -127,6 +168,9 @@ public class TicketService implements ITicket {
                             .collect(Collectors.joining(","));
 
                     // Convert configured projectId (string) to either Long or use as path
+                    String projectId = String.valueOf(getGitlabProjectId(Long.parseLong(ticket.getSid()),
+                            savedTicket.getTicketRequester()));
+                    log.info("Fetched project id: {}", projectId);
                     Object projectIdOrPath = projectId;
                     try {
                         if (projectId != null && projectId.matches("^\\d+$")) {
@@ -136,17 +180,29 @@ public class TicketService implements ITicket {
                         projectIdOrPath = projectId; // fallback to path
                     }
 
+                    log.info("Creating gitlab issue in project id: {}", projectIdOrPath);
+
                     // convert dates
                     Date createdAt = Date.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant());
                     Date dueDate = null;
-                    if (savedTicket.getSlaDueDatetime() != null) {
-                        dueDate = Date.from(savedTicket.getSlaDueDatetime().atZone(ZoneId.systemDefault()).toInstant());
+                    if (savedTicket.getSlaEndDueDatetime() != null) {
+                        dueDate = Date.from(savedTicket.getSlaEndDueDatetime().atZone(ZoneId.systemDefault()).toInstant());
                     }
 
                     try {
                         // create remote issue (assignee IDs: replace list with real IDs as needed)
-                        List<Long> assignees = gitlabAssigneeHandler(Long.parseLong(ticket.getSid()));
-                        Issue remote = gitlabService.createIssue(
+                        Long tid = Long.parseLong(ticket.getTid());
+                        Long qid = Long.parseLong(ticket.getQid());
+                        List<Long> assignees = gitlabAssigneeHandler(Long.parseLong(ticket.getSid()),
+                                tid, qid, savedTicket.getCurrentAssigneeSL());
+                        log.info("Gitlab ticket assigned to {}", assignees);
+
+                        Long projectFlag = fetchPidBySid(Long.valueOf(ticket.getSid()));
+                        log.info("Project module reference: {}", projectFlag);
+                        AbstractGitlabService abstractGitlabService = gitlabServiceFactory
+                                .getServiceByProjectId(Math.toIntExact(projectFlag));
+
+                        Issue remote = abstractGitlabService.createIssue(
                                 projectIdOrPath,
                                 gitLabIssue.getIssueTitle(),
                                 gitLabIssue.getIssueDescription(),
@@ -174,26 +230,32 @@ public class TicketService implements ITicket {
                         Integer iid = Math.toIntExact(remote.getIid());
                         if (iid != null) gitLabIssue.setIid(iid.longValue());
 
+                        LocalDateTime updatedAt = LocalDateTime.ofInstant(remote.getUpdatedAt().toInstant(),
+                                ZoneId.systemDefault());
                         gitLabIssue.setWebUrl(remote.getWebUrl());
                         gitLabIssue.setIssueStatus("opened");
                         gitLabIssue.setIssueLabel(labels);
-                        gitLabIssue.setGitlabUpdatedAt(remote.getUpdatedAt());
+                        gitLabIssue.setGitlabUpdatedAt(updatedAt);
 
                         // assignee(s)
                         if (remote.getAssignee() != null && remote.getAssignee().getId() != null) {
-                            gitLabIssue.setAssigneeId(remote.getAssignee().getId().longValue());
+                            gitLabIssue.setGitLabUserId(remote.getAssignee().getId());
                             gitLabIssue.setAssigneeName(remote.getAssignee().getName());
                         } else if (remote.getAssignees() != null && !remote.getAssignees().isEmpty()) {
                             Integer firstId = Math.toIntExact(remote.getAssignees().get(0).getId());
-                            if (firstId != null) gitLabIssue.setAssigneeId(firstId.longValue());
+                            if (firstId != null) gitLabIssue.setGitLabUserId(Long.valueOf(firstId));
                         }
+
+                        gitLabIssue.setCurrLevel(ticket.getCurrentAssigneeSL());
 
                         // Persist local GitLabIssues with remote identifiers
                         gitlabIssueRepository.save(gitLabIssue);
+                        log.info("Gitlab issue created successfully.");
 
                     } catch (Exception ex) {
                         //  log.error("Failed to create GitLab issue for ticket {}: {}", savedTicket.getTicketId(), ex.getMessage(), ex);
                         // fail the request so caller knows; transaction will roll back if you prefer
+                        log.info("Exception occured while creating gitlab issue, {}", ex);
                         throw ex;
                     }
                 } else {
@@ -214,6 +276,7 @@ public class TicketService implements ITicket {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
 
         } catch (Exception e) {
+            log.info("Exception occured while creating creating ticket, {}", e);
             ResponseDto errorResponse = new ResponseDto(
                     false,
                     "Failed to create ticket: " + e.getMessage(),
@@ -224,27 +287,56 @@ public class TicketService implements ITicket {
         }
     }
 
-    private List<Long> gitlabAssigneeHandler(Long sid) {
+    private LocalDateTime setSlaDueDateTime(Integer slaDays) {
 
-        List<GitlabAssignee> gitlabAssignee =
-                gitlabAssigneeRepositoryReadOnly.findByPid(fetchPidBySid(sid));
+        ZoneId zone = ZoneId.of("Asia/Kolkata");
+        ZonedDateTime nowZ = ZonedDateTime.now(zone);
+        LocalDateTime now = LocalDateTime.now();
+        LocalTime ruleTime = LocalTime.of(17, 30, 0);
+        ZonedDateTime due = SlaDueComputeUtil.computeSlaDueZoned(nowZ, slaDays, null, zone);
+        return due.toLocalDateTime();
+    }
 
-        List<Long> assignees = gitlabAssignee.stream()
-                .map(GitlabAssignee::getAssigneeId)
+    private Long getGitlabProjectId(long sid, String ssoId) {
+
+        Long pid = fetchPidBySid(sid);
+        Long projectId =
+                primaryApiSvc.getGitlabProjectId(pid, sid, ssoId);
+
+        if (projectId != null) {
+            log.info("Configured project id is {} for pid={} & sid={}",
+                    projectId, pid, sid);
+            return projectId;
+        }
+        else {
+            log.info("No project id found..");
+            return null;
+        }
+    }
+
+    private List<Long> gitlabAssigneeHandler(Long sid, Long tid, Long qid, String currAssigneeSl) {
+
+        Long pid = fetchPidBySid(sid);
+        List<GitlabAssigneeDto> gitlabAssigneeDtos =
+                primaryApiSvc.getGitlabAssignees(pid, sid, tid, qid, currAssigneeSl);
+
+        List<Long> assignees = gitlabAssigneeDtos.stream()
+                .map(GitlabAssigneeDto::gitlabUserId)
                 .map(Long::valueOf)           // avoids ambiguity
                 .collect(Collectors.toList());
 
         return assignees;
     }
 
-    private Long fetchPidBySid(Long sid) {
+    public Long fetchPidBySid(Long sid) {
         return secondaryCardRepositoryReadOnly.findById(sid).get().getPrimaryCard().getPid();
     }
 
 
     @Transactional
-    public Tickets escalate(String ticketId) {
+    public Tickets escalate(String ticketId, String message) {
 
+        String escReason = extractEscalationReason(message);
         Tickets t = ticketRepositoryReadOnly.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found: " + ticketId));
 
@@ -273,7 +365,8 @@ public class TicketService implements ITicket {
         t.setCurrStatus(TicketStatusEnum.ESCALATED.getCode());
         t.setEscalationPath(nextEscPath.get().getEscalationPath());
         t.setSlaDays(nextSlaDays);
-        t.setSlaDueDatetime(LocalDateTime.now().plusDays(nextSlaDays));
+        t.setSlaStartDueDatetime(LocalDateTime.now());
+        t.setSlaEndDueDatetime(LocalDateTime.now().plusDays(nextSlaDays));
         t.setCurrTat(nextSlaDays.longValue());
 
         // compute new assignee (queue) for the next level
@@ -284,6 +377,8 @@ public class TicketService implements ITicket {
         if (!bumpedPriority.equalsIgnoreCase(currentPriority)) {
             t.setPriority(bumpedPriority);
         }
+
+        t.recalcTat();
 
         Optional<EscalationHistory> escalationHistory = escalationHistoryRepositoryReadOnly.findByTicketId(ticketId);
 
@@ -300,7 +395,7 @@ public class TicketService implements ITicket {
             hist.setSlaDays(nextSlaDays);
             hist.setSlaDueDatetime(LocalDateTime.now().plusDays(nextSlaDays));
             hist.setEscalationPath(nextEscPath.get().getEscalationPath());
-            hist.setNote("Escalated via rules");
+            hist.setNote(escReason);
             hist.setCreatedAt(LocalDateTime.now());
             escalationHistoryRepository.save(hist);
         } else {
@@ -316,7 +411,7 @@ public class TicketService implements ITicket {
             hist.setSlaDays(nextSlaDays);
             hist.setSlaDueDatetime(LocalDateTime.now().plusDays(nextSlaDays));
             hist.setEscalationPath(nextEscPath.get().getEscalationPath());
-            hist.setNote("Escalated via rules");
+            hist.setNote(escReason);
             hist.setEscalatedBy(assigneeBefore);
             hist.setCreatedAt(LocalDateTime.now());
             escalationHistoryRepository.save(hist);
@@ -326,7 +421,25 @@ public class TicketService implements ITicket {
 
         iNotificationService.createEscalationNotification(saved, hist);
 
+        //Audit entry
+        String activity = TicketStatusEnum.ESCALATED.getLabel() + " by " + hist.getAssigneeBefore()
+                + "(" + hist.getFromLevel() + ")" + " escalated ticket to "
+                + hist.getAssigneeAfter() + "(" + hist.getToLevel() + "). " + "Priority changed from "
+                + hist.getOldPriority()
+                + " due to "
+                + extractEscalationReason(message)
+                + " to " + hist.getNewPriority() + " at " + hist.getCreatedAt();
+        auditServiceI.createAuditLog(saved, TicketStatusEnum.ESCALATED.getCode(), activity, escReason);
+
         return saved;
+    }
+
+    private String extractEscalationReason(String message) {
+        return message.substring(message.indexOf("Reason:") + "Reason:".length()).trim();
+    }
+
+    private String extractReAssignReason(String message) {
+        return message.substring(message.indexOf("Reason:") + "Reason:".length()).trim();
     }
 
 
@@ -387,10 +500,10 @@ public class TicketService implements ITicket {
      * Escalate to an explicit target level (L1/L2/L3). If targetLevel null/blank,
      * fall back to rule-driven escalation (next).
      */
-    public Tickets escalate(String ticketId, String targetLevel) {
+    public Tickets escalate(String ticketId, String targetLevel, String message) {
 
         if (targetLevel == null || targetLevel.isBlank()) {
-            return escalate(ticketId);
+            return escalate(ticketId, message);
         }
 
         Tickets t = ticketRepositoryReadOnly.findById(ticketId)
@@ -409,8 +522,11 @@ public class TicketService implements ITicket {
         t.setEscalationPath(target);
         t.setCurrStatus(TicketStatusEnum.ESCALATED.getCode());
         t.setSlaDays(slaDaysForTarget);
-        t.setSlaDueDatetime(LocalDateTime.now().plusDays(slaDaysForTarget));
+        t.setSlaStartDueDatetime(LocalDateTime.now());
+        t.setSlaEndDueDatetime(LocalDateTime.now().plusDays(slaDaysForTarget));
         t.setCurrTat(slaDaysForTarget.longValue());
+
+        t.recalcTat();
 
         String now = LocalDateTime.now().toString();
         String path = t.getEscalationPath() == null ? "" : t.getEscalationPath();
@@ -574,13 +690,16 @@ public class TicketService implements ITicket {
         Tickets saved = ticketsRepository.save(t);
         saveTicketAssigneeHistory(saved);
 
+        //Audit entry
+        auditServiceI.createAuditLog(saved, TicketStatusEnum.IN_PROGRESS.getCode(), null);
+
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "in-progress")));
 
         return saved;
     }
 
-    private void saveTicketAssigneeHistory(Tickets savedTicket) {
+    private TicketDetails saveTicketAssigneeHistory(Tickets savedTicket) {
 
         TicketDetails ticketDetails = new TicketDetails();
         ticketDetails.setTicketId(savedTicket.getTicketId());
@@ -589,6 +708,8 @@ public class TicketService implements ITicket {
         ticketDetails.setCurrAssignee(savedTicket.getCurrentAssignee());
         ticketDetails.setCurrAssigneeSl(savedTicket.getCurrentAssigneeSL());
         ticketDetailRepository.save(ticketDetails);
+
+        return ticketDetails;
     }
 
     /**
@@ -601,34 +722,34 @@ public class TicketService implements ITicket {
 
         String note = (message == null || message.isBlank()) ? "Resolved via system" : message;
 
-        // try to call resolveTicket helper if present
+        OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
         try {
             Method m = t.getClass().getMethod("resolveTicket", String.class);
             if (m != null) {
                 m.invoke(t, note);
             } else {
                 // fallback
-                t.setResolvedDt(LocalDateTime.now());
+                t.setResolvedDt(istTime.toLocalDateTime());
                 String existing = t.getResolutionNote() == null ? "" : t.getResolutionNote() + "\n";
                 t.setResolutionNote(existing + "[Resolved " + LocalDateTime.now() + "] " + note);
                 t.setCurrStatus(TicketStatusEnum.RESOLVED.getCode());
                 t.setCurrTat(0L);
-                t.setBreachedFlag(t.getSlaDueDatetime() != null && t.getResolvedDt() != null && t.getResolvedDt().isAfter(t.getSlaDueDatetime()));
+                t.setBreachedFlag(t.getSlaEndDueDatetime() != null && t.getResolvedDt() != null && t.getResolvedDt().isAfter(t.getSlaEndDueDatetime()));
             }
         } catch (NoSuchMethodException nsme) {
-            t.setResolvedDt(LocalDateTime.now());
+            t.setResolvedDt(istTime.toLocalDateTime());
             String existing = t.getResolutionNote() == null ? "" : t.getResolutionNote() + "\n";
-            t.setResolutionNote(existing + "[Resolved " + LocalDateTime.now() + "] " + note);
+            t.setResolutionNote(existing + "[Resolved " + istTime.toLocalDateTime() + "] " + note);
             t.setCurrStatus(TicketStatusEnum.RESOLVED.getCode());
             t.setCurrTat(0L);
-            t.setBreachedFlag(t.getSlaDueDatetime() != null && t.getResolvedDt() != null && t.getResolvedDt().isAfter(t.getSlaDueDatetime()));
+            t.setBreachedFlag(t.getSlaEndDueDatetime() != null && t.getResolvedDt() != null && t.getResolvedDt().isAfter(t.getSlaEndDueDatetime()));
         } catch (Exception ex) {
             t.setResolvedDt(LocalDateTime.now());
             String existing = t.getResolutionNote() == null ? "" : t.getResolutionNote() + "\n";
-            t.setResolutionNote(existing + "[Resolved " + LocalDateTime.now() + "] " + note);
+            t.setResolutionNote(existing + "[Resolved " + istTime.toLocalDateTime() + "] " + note);
             t.setCurrStatus(TicketStatusEnum.RESOLVED.getCode());
             t.setCurrTat(0L);
-            t.setBreachedFlag(t.getSlaDueDatetime() != null && t.getResolvedDt() != null && t.getResolvedDt().isAfter(t.getSlaDueDatetime()));
+            t.setBreachedFlag(t.getSlaEndDueDatetime() != null && t.getResolvedDt() != null && t.getResolvedDt().isAfter(t.getSlaEndDueDatetime()));
         }
 
         // stop further escalation
@@ -641,6 +762,14 @@ public class TicketService implements ITicket {
         publisher.publishEvent(new DashboardUpdateEvent(this, saved.getTicketRequester(),
                 Map.of("ticketId", saved.getTicketId(), "action", "resolved")));
 
+
+        String activity = "Resolved by " +
+                saved.getCurrentAssignee() + "(" + saved.getCurrentAssigneeSL() + ")"
+                + " at "
+                + istTime;
+
+        auditServiceI.createAuditLog(saved, TicketStatusEnum.RESOLVED.getCode(), activity);
+
         return saved;
     }
 
@@ -649,6 +778,8 @@ public class TicketService implements ITicket {
      */
     @Transactional
     public Tickets close(String ticketId, String message) {
+
+        OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
         Tickets t = ticketRepositoryReadOnly.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found: " + ticketId));
 
@@ -656,13 +787,13 @@ public class TicketService implements ITicket {
             t.setResolvedDt(LocalDateTime.now());
             String existing = t.getResolutionNote() == null ? "" : t.getResolutionNote() + "\n";
             if (message != null && !message.isBlank()) {
-                t.setResolutionNote(existing + "[Closed & resolved " + LocalDateTime.now() + "] " + message);
+                t.setResolutionNote(existing + "[Closed & resolved " + istTime.toLocalDateTime() + "] " + message);
             } else {
-                t.setResolutionNote(existing + "[Closed & resolved " + LocalDateTime.now() + "]");
+                t.setResolutionNote(existing + "[Closed & resolved " + istTime.toLocalDateTime() + "]");
             }
         } else if (message != null && !message.isBlank()) {
             String existing = t.getResolutionNote() == null ? "" : t.getResolutionNote() + "\n";
-            t.setResolutionNote(existing + "[Closed " + LocalDateTime.now() + "] " + message);
+            t.setResolutionNote(existing + "[Closed " + istTime.toLocalDateTime() + "] " + message);
         }
 
         t.setCurrStatus(TicketStatusEnum.CLOSED.getCode());
@@ -678,6 +809,13 @@ public class TicketService implements ITicket {
                 Map.of("ticketId", saved.getTicketId(), "action", "closed")));
 
         iNotificationService.createClosedNotification(saved);
+
+        String activity = "Closed by " +
+                saved.getCurrentAssignee() + "(" + saved.getCurrentAssigneeSL() + ")"
+                + " at "
+                + istTime;
+
+        auditServiceI.createAuditLog(saved, TicketStatusEnum.CLOSED.getCode(), activity);
 
         return saved;
     }
@@ -699,12 +837,14 @@ public class TicketService implements ITicket {
 
             // try to reflectively pull a target level from DTO if present (supports common names)
             String targetLevel = extractTargetLevelFromDto(ticketActionDto);
+            OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
 
             switch (rawAction) {
                 case "in-progress":
                 case "in progress":
                 case "inprogress": {
                     Tickets updated = inProgress(ticketId, message);
+                    syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     ResponseDto ok = new ResponseDto(true, "Ticket marked In Progress", updated, 200);
                     return ResponseEntity.ok(ok);
@@ -712,6 +852,7 @@ public class TicketService implements ITicket {
                 case "resolve":
                 case "resolved": {
                     Tickets updated = resolve(ticketId, message);
+                    syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket resolved", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
@@ -719,6 +860,10 @@ public class TicketService implements ITicket {
                 case "close":
                 case "closed": {
                     Tickets updated = close(ticketId, message);
+                    syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
+                    SecondaryCard sec = secondaryCardRepositoryReadOnly.findById(Long.valueOf(updated.getSid())).get();
+                    Long pid = sec.getPrimaryCard().getPid();
+                    primaryApiSvc.decreaseAssigneeActiveCnt(updated.getCurrentAssignee(), pid, updated.getCurrentAssigneeSL());
                     ResponseDto ok = new ResponseDto(true, "Ticket closed", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
@@ -726,10 +871,11 @@ public class TicketService implements ITicket {
                 case "escalate": {
                     Tickets updated;
                     if (targetLevel != null && !targetLevel.isBlank()) {
-                        updated = escalate(ticketId, targetLevel);
+                        updated = escalate(ticketId, targetLevel, message);
                     } else {
-                        updated = escalate(ticketId);
+                        updated = escalate(ticketId, message);
                     }
+                    syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     publisher.publishEvent(new DashboardUpdateEvent(this, updated.getTicketRequester(),
@@ -743,8 +889,10 @@ public class TicketService implements ITicket {
                     } else {
                         updated = referBack(ticketId, message);
                     }
+                    syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
-                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
+                    messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(),
+                            analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
                 }
                 case "re-assign": {
@@ -754,6 +902,7 @@ public class TicketService implements ITicket {
                     } else {
                         updated = reAssignTicket(ticketId, message);
                     }
+                    syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     return ResponseEntity.ok(ok);
@@ -788,45 +937,110 @@ public class TicketService implements ITicket {
             if (ticketDetails.isEmpty())
                 return null;
 
+            Tickets updateAssignee = new Tickets();
+            String referredBackBy = "";
+            String referredBackBySl = "";
             if (ticketDetails.size() == 1) {
-                Tickets updateAssignee = ticket.get();
-                TicketDetails singleEntry = ticketDetails.get(0);
-                updateAssignee.setReferBackComments(message);
+                updateAssignee = ticket.get();
+                Optional<TicketDetails> singleEntry = ticketDetails.stream()
+                        .sorted(Comparator.comparing(TicketDetails::getCreatedAt))
+                        .skip(Math.max(0, ticketDetails.size() - 2))
+                        .findFirst();
+                referredBackBy = singleEntry.get().getCurrAssignee();
+                referredBackBySl = singleEntry.get().getCurrAssigneeSl();
+                updateAssignee.setReferBackComments(referBackMsgHandler(message, updateAssignee));
                 updateAssignee.setIsReferredBack(true);
-                updateAssignee.setCurrentAssignee(singleEntry.getPrevAssignee());
-                updateAssignee.setCurrentAssigneeSL(singleEntry.getPrevAssigneeSl());
+                updateAssignee.setCurrentAssignee(singleEntry.get().getPrevAssignee());
+                updateAssignee.setCurrentAssigneeSL(singleEntry.get().getPrevAssigneeSl());
                 updateAssignee.setCurrStatus(TicketStatusEnum.REFERRED_BACK.getLabel());
+
+                updateAssignee.recalcTat();
                 ticketsRepository.save(updateAssignee);
                 saveTicketAssigneeHistory(updateAssignee);
             } else {
-                Tickets updateAssignee = ticket.get();
+                updateAssignee = ticket.get();
                 String prevAssignee = updateAssignee.getCurrentAssignee();
                 Optional<TicketDetails> singleEntry = ticketDetails.stream()
                         .sorted(Comparator.comparing(TicketDetails::getCreatedAt))
                         .skip(Math.max(0, ticketDetails.size() - 2))
                         .findFirst();
-                updateAssignee.setReferBackComments(message);
+                referredBackBy = prevAssignee;
+                referredBackBySl = updateAssignee.getCurrentAssigneeSL();
+                updateAssignee.setReferBackComments(referBackMsgHandler(message, updateAssignee));
                 updateAssignee.setIsReferredBack(true);
                 updateAssignee.setCurrentAssignee(singleEntry.get().getPrevAssignee());
                 updateAssignee.setCurrentAssigneeSL(singleEntry.get().getPrevAssigneeSl());
                 updateAssignee.setCurrStatus(TicketStatusEnum.REFERRED_BACK.getLabel());
+
+                updateAssignee.recalcTat();
                 Tickets savedTicket = ticketsRepository.save(updateAssignee);
                 saveTicketAssigneeHistory(updateAssignee);
                 iNotificationService.
                         createReferBackNotification(savedTicket, prevAssignee, singleEntry.get().getPrevAssignee());
+
             }
+
+            //Audit entry
+            if (updateAssignee.getReferBackComments() != null && !updateAssignee.getReferBackComments().trim().isEmpty()) {
+
+                String[] referBackComments = updateAssignee.getReferBackComments().split(",");
+                String latestComment = referBackComments[referBackComments.length - 1].trim();
+
+                OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
+                String activity = "Referred-back by " +
+                                referredBackBy + "(" + referredBackBySl + ")"
+                                + " to "
+                                + updateAssignee.getCurrentAssignee()
+                                + "(" + updateAssignee.getCurrentAssigneeSL() + ")"
+                                + " due to "
+                                + latestComment.replaceAll("\\s+by\\b.*", "").trim()
+                                + " at "
+                                + istTime;
+
+                auditServiceI.createAuditLog(updateAssignee, TicketStatusEnum.REFERRED_BACK.getCode(), activity,
+                        referBackMsgHandler(message, updateAssignee));
+
+            }
+
             return ticket.get();
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }
     }
 
+    public static String extractBetweenByAndAt(String text) {
+        if (text == null) return null;
+
+        Pattern pattern = Pattern.compile("\\bby\\s+(.*?)\\s+at\\b");
+        Matcher matcher = pattern.matcher(text);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return null;
+    }
+
+
+    private String referBackMsgHandler(String newMessage, Tickets ticket) {
+
+        List<String> messages = new ArrayList<>();
+
+        if (ticket.getReferBackComments() != null && !ticket.getReferBackComments().isEmpty()) {
+            messages.addAll(
+                    Arrays.asList(ticket.getReferBackComments().split(","))
+            );
+        }
+
+        messages.add(newMessage + " by " + ticket.getCurrentAssignee() + " at " + Instant.now());
+
+        return String.join(",", messages);
+    }
+
     private Tickets reAssignTicket(String ticketId, String message) {
 
+        String reAssignComment = extractReAssignReason(message);
         Optional<Tickets> ticket = ticketRepositoryReadOnly.findById(ticketId);
         try {
-
-
             if (ticket.isPresent()) {
                 List<TicketDetails> ticketDetails =
                         ticketDetailRepositoryReadOnly.findByTicketId(ticketId);
@@ -835,13 +1049,12 @@ public class TicketService implements ITicket {
                     return null;
 
                 //fetch second last record.
-
                 Optional<TicketDetails> ticketHistory = Optional.ofNullable(ticketDetails)
                         .orElseGet(Collections::emptyList)
                         .stream()
                         .filter(Objects::nonNull)
                         .sorted(Comparator.comparing(
-                                TicketDetails::getCreatedBy,                          // <-- change getter if needed
+                                TicketDetails::getUpdatedAt,                          // <-- change getter if needed
                                 Comparator.nullsLast(Comparator.naturalOrder())      // place null timestamps last
                         ))
                         .collect(Collectors.collectingAndThen(Collectors.toList(), list ->
@@ -849,13 +1062,33 @@ public class TicketService implements ITicket {
                         ));
 
                 //Now re-assigning the previous one.
+                String prevAssignee = ticket.get().getCurrentAssignee();
+                String prevAssigneeSl = ticket.get().getCurrentAssigneeSL();
+                String reAssignComments = ticket.get().getReAssignComments() == null ? "" :
+                        ticket.get().getReAssignComments();
                 ticket.get().setCurrentAssignee(ticketHistory.get().getCurrAssignee());
                 ticket.get().setCurrentAssigneeSL(ticketHistory.get().getCurrAssigneeSl());
                 ticket.get().setCurrStatus(TicketStatusEnum.REASSIGNED.getLabel());
+                ticket.get().setReAssignComments(reAssignComments.concat(",").concat(message));
                 ticket.get().recalcTat();
 
                 Tickets savedTicket = ticketsRepository.save(ticket.get());
+                SecondaryCard sec = secondaryCardRepositoryReadOnly.findById(Long.valueOf(savedTicket.getSid())).get();
+                Long pid = sec.getPrimaryCard().getPid();
+                //primaryApiSvc.increaseAssigneeActiveCnt(savedTicket.getCurrentAssignee(), pid,  savedTicket.getCurrentAssigneeSL());
                 saveTicketAssigneeHistory(savedTicket);
+
+                OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
+                String activity = "Re-assigned from " +
+                                prevAssignee + "(" + prevAssigneeSl + ")"
+                                + " to "
+                                + ticket.get().getCurrentAssignee() + "(" + ticket.get().getCurrentAssigneeSL() + ")"
+                                + " due to " + extractReAssignReason(message)
+                                + " at "
+                                + istTime;
+
+                auditServiceI.createAuditLog(ticket.get(), TicketStatusEnum.REASSIGNED.getCode(), activity,
+                        reAssignComment);
                 return savedTicket;
             }
         } catch (Exception exception) {
@@ -926,6 +1159,7 @@ public class TicketService implements ITicket {
     @Override
     public ResponseEntity<ResponseDto> addComment(CommentCreateRequestDto req) {
 
+        OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
         try {
            TicketComments ticketComments = new TicketComments();
            Optional<Tickets> ticket = ticketRepositoryReadOnly.findById(req.ticketId());
@@ -940,6 +1174,7 @@ public class TicketService implements ITicket {
                    ticketComments.setParent(ticketComments1.get());
             }
             TicketComments savedComment = ticketCommentRepository.save(ticketComments);
+            syncService.syncLastUpdatedByTicketId(savedComment.getTicket().getTicketId(), istTime.toLocalDateTime());
             ResponseDto ok = new ResponseDto(true, "Comments added successfully", savedComment, 200);
             return ResponseEntity.ok(ok);
         } catch (Exception e) {
@@ -972,6 +1207,18 @@ public class TicketService implements ITicket {
             );
             return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(errorResponse);
         }
+    }
+
+    @Override
+    public ResponseEntity<ResponseDto> getTicketAuditLogs(String ticketId) {
+
+        //Escalation
+        //Assigned
+        //referred_back
+        //in progress
+        //resolved
+        //closed
+        return null;
     }
 
     private CommentResponseDto toResponse(TicketComments c) {
@@ -1015,8 +1262,9 @@ public class TicketService implements ITicket {
     private static Tickets getTickets(NewTicketDto newTicketDto) throws JsonProcessingException {
 
         Tickets ticket = new Tickets();
+        ticket.setCif(newTicketDto.cif());
         ticket.setIssueTitle(newTicketDto.issueTitle());
-        ticket.setIpPhoneDetails(newTicketDto.ipPhoneDetails());
+        ticket.setIpPhoneDetails(newTicketDto.contactNumber());
         ticket.setIssueId(newTicketDto.issueId());
         ticket.setIssueSubTypeId(newTicketDto.issueSubTypeId());
         ticket.setIssueCategory(newTicketDto.issueCategory());
@@ -1045,6 +1293,8 @@ public class TicketService implements ITicket {
         setMetaData2(newTicketDto, ticket);
 
         ticket.setSid(newTicketDto.sid());
+        ticket.setTid(String.valueOf(newTicketDto.tid()));
+        ticket.setQid(String.valueOf(newTicketDto.qid()));
 
         if (newTicketDto.currentAssignee() != null && newTicketDto.currentAssignee().toLowerCase().contains("QUEUE".toLowerCase()))
             ticket.setCurrStatus(TicketStatusEnum.NEW.getCode());
@@ -1065,5 +1315,24 @@ public class TicketService implements ITicket {
         String jsonString = mapper.writeValueAsString(headerDetails);
 
         ticket.setMetaData2(jsonString);
+    }
+
+    public ModuleRequestDto getModuleRequestDtoFromTicket(Tickets ticket) {
+
+        Optional<IssueDetail> issueDetail =
+                issueDetailRepositoryReadOnly.findById(Long.valueOf(ticket.getIssueId()));
+        Long sid = issueDetail.get().getSecondaryCard().getSid();
+        SecondaryCard secondaryCard = secondaryCardRepositoryReadOnly.findById(sid).get();
+        Long pid =secondaryCard
+                .getPrimaryCard().getPid();
+        ModuleRequestDto moduleRequestDto = new ModuleRequestDto(
+                pid,
+                sid,
+                issueDetail.get().getTertiaryCard() != null ? issueDetail.get().getTertiaryCard().getTid() : null,
+                issueDetail.get().getQuadCard() != null ? issueDetail.get().getQuadCard().getFid() : null
+        );
+
+        log.info("Created module request={}", moduleRequestDto.toString());
+        return moduleRequestDto;
     }
 }

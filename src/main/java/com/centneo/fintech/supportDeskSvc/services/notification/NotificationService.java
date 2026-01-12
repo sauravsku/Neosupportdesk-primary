@@ -160,7 +160,7 @@ public class NotificationService implements INotificationService {
                 savedTicket.getCurrentAssigneeSL(),
                 savedTicket.getTicketRequester(),
                 "Escalated By" + savedTicket.getTicketRequester(),
-                savedTicket.getSlaDueDatetime()
+                savedTicket.getSlaEndDueDatetime()
         );
 
         // create notification

@@ -6,9 +6,12 @@ public record NewTicketDto(
 
         String ticketId,
         String sid,
+        Long tid,
+        Long qid,
 
+        String cif,
         String issueTitle,
-        String ipPhoneDetails,
+        String contactNumber,
         String issueId,
         String issueSubTypeId,
         String issueCategory,

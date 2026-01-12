@@ -5,7 +5,7 @@ public enum SupportLevelEnum {
     L1("L1", "Level-1"),
     L2("L2", "Level-2"),
     L3("L3", "Level-3"),
-    MANAGER("MANAGER", "MANAGER");
+    VENDOR("VENDOR", "VENDOR");
 
     private final String code;
     private final String label;

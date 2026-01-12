@@ -1,6 +1,7 @@
 package com.centneo.fintech.supportDeskSvc.services.admin;
 
 import com.centneo.fintech.supportDeskSvc.dto.DashboardInsightsDto;
+import com.centneo.fintech.supportDeskSvc.dto.FeedbackDto;
 import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
 import com.centneo.fintech.supportDeskSvc.dto.admin.BranchSearchDto;
 import com.centneo.fintech.supportDeskSvc.dto.admin.CnsdMapDto;
@@ -12,6 +13,8 @@ import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
 import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.*;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.SysNeoMapRepository;
+import com.centneo.fintech.supportDeskSvc.repository.write.repository.UserFeedbackRepository;
+import com.centneo.fintech.supportDeskSvc.services.external.PrimaryApiSvc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -38,6 +41,9 @@ public class SysNeoMapService implements ISysNeoMap {
     private SysNeoMapRepository sysNeoMapRepository;
 
     @Autowired
+    private PrimaryApiSvc primaryApiSvc;
+
+    @Autowired
     private BranchMasterReadOnly branchMasterReadOnly;
 
     @Autowired
@@ -60,6 +66,9 @@ public class SysNeoMapService implements ISysNeoMap {
 
     @Autowired
     private TicketRepositoryReadOnly ticketRepositoryReadOnly;
+
+    @Autowired
+    private UserFeedbackRepository userFeedbackRepository;
 
     @Override
     public ResponseEntity<ResponseDto> setCnsdMap(List<CnsdMapDto> cnsdMapDtos) {
@@ -147,8 +156,7 @@ public class SysNeoMapService implements ISysNeoMap {
 
             String initialAssigneeLevel = slaEscalationRule.get().getInitialAssigneeLevel();
 
-
-            ResponseDto responseDto = getAllUserInfo(query, level);
+            ResponseDto responseDto = primaryApiSvc.getAllUserInfo(query, level);
 
             if (responseDto != null) {
                 Map<String, String> foundUsernames = getUserNameFromResponse(responseDto);
@@ -174,10 +182,11 @@ public class SysNeoMapService implements ISysNeoMap {
         }
     }
 
+
     @Override
     public ResponseEntity<ResponseDto> getBranchInfo(String query) {
+
         try {
-            // validate input
             if (query == null || query.trim().isEmpty()) {
                 return ResponseEntity
                         .status(HttpStatus.BAD_REQUEST)
@@ -185,36 +194,60 @@ public class SysNeoMapService implements ISysNeoMap {
                                 HttpStatus.BAD_REQUEST.value()));
             }
 
-            Optional<BranchMaster> branchMaster = branchMasterReadOnly.findById(query.trim());
+            String trimmed = query.trim();
 
-            if (branchMaster.isPresent()) {
-                BranchMaster bm = branchMaster.get();
-                BranchSearchDto searchedBranch = new BranchSearchDto(
-                        String.valueOf(bm.getBrCo()),
-                        bm.getBrName(),
-                        bm.getRegionName(),
-                        bm.getZoneName(),
-                        bm.getState(),
-                        bm.getDistrict(),
-                        bm.getEmailId(),
-                        bm.getCategory(),
-                        bm.getBrSize(),
-                        bm.getLiveFlag()
-                );
+            // detect numeric (branch code)
+            Integer brCo = null;
+            if (trimmed.matches("\\d+")) {
+                String normalized = trimmed.replaceFirst("^0+(?!$)", "");
+                try {
+                    brCo = Integer.valueOf(normalized);
+                } catch (NumberFormatException nfe) {
+                    brCo = Integer.valueOf(trimmed);
+                }
+            }
 
-                return ResponseEntity.ok(new ResponseDto(true, "Branch info found", searchedBranch, HttpStatus.OK.value()));
-            } else {
+            // Always prepare brName LIKE pattern with % %
+            String brNameLike = "%" + trimmed.toLowerCase() + "%";
+
+            // Call repository
+            List<BranchMaster> matches =
+                    branchMasterReadOnly.searchByBrCoOrBrName(brCo, brNameLike);
+
+            if (matches == null || matches.isEmpty()) {
                 return ResponseEntity
                         .status(HttpStatus.NOT_FOUND)
-                        .body(new ResponseDto(false, "Branch not found for query: " + query, null, HttpStatus.NOT_FOUND.value()));
+                        .body(new ResponseDto(false,
+                                "Branch not found for query: " + query,
+                                null,
+                                HttpStatus.NOT_FOUND.value()));
             }
-        } catch (Exception ex) {
-            // minimal error output without using a logger
-            System.err.println("Error fetching branch info for query " + query + ": " + ex.getMessage());
-            ex.printStackTrace();
 
+            BranchMaster bm = matches.get(0);
+
+            BranchSearchDto searchedBranch = new BranchSearchDto(
+                    String.valueOf(bm.getBrCo()),
+                    bm.getBrName(),
+                    bm.getRegionName(),
+                    bm.getZoneName(),
+                    bm.getState(),
+                    bm.getDistrict(),
+                    bm.getEmailId(),
+                    bm.getCategory(),
+                    bm.getBrSize(),
+                    bm.getLiveFlag()
+            );
+
+            return ResponseEntity.ok(
+                    new ResponseDto(true, "Branch info found", matches, HttpStatus.OK.value())
+            );
+
+        } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResponseDto(false, "Error fetching branch: " + ex.getMessage(), null, HttpStatus.INTERNAL_SERVER_ERROR.value()));
+                    .body(new ResponseDto(false,
+                            "Error fetching branch: " + ex.getMessage(),
+                            null,
+                            HttpStatus.INTERNAL_SERVER_ERROR.value()));
         }
     }
 
@@ -351,64 +384,84 @@ public class SysNeoMapService implements ISysNeoMap {
 
         DashboardInsightsDto dto = new DashboardInsightsDto();
 
-        // 2) avg response minutes
-        Double avgResp = ticketRepositoryReadOnly.findAvgResponseMinsNative(username);
-        avgResp = avgResp == null ? 0.0 : Math.round(avgResp * 100.0) / 100.0;
-        dto.setAvgResponseMins(avgResp == null ? 0.0 : avgResp);
+        try {
+            // 2) avg response minutes
+            Double avgResp = ticketRepositoryReadOnly.findAvgResponseMinsNative(username);
+            avgResp = avgResp == null ? 0.0 : Math.round(avgResp * 100.0) / 100.0;
+            dto.setAvgResponseMins(avgResp == null ? 0.0 : avgResp);
 
-        // 3) mttr (minutes)
-        Double mttr = ticketRepositoryReadOnly.findAvgMttrMinsNative(username);
-        mttr = mttr == null ? 0.0 : Math.round(mttr * 100.0) / 100.0;
-        dto.setMttrMins(mttr == null ? 0.0 : mttr);
+            // 3) mttr (minutes)
+            Double mttr = ticketRepositoryReadOnly.findAvgMttrMinsNative(username);
+            mttr = mttr == null ? 0.0 : Math.round(mttr * 100.0) / 100.0;
+            dto.setMttrMins(mttr == null ? 0.0 : mttr);
 
-        // 4) sla breaches
-        Integer breaches = ticketRepositoryReadOnly.countSlaBreachesNative(username);
-        dto.setSlaBreaches(breaches == null ? 0 : breaches);
+            // 4) sla breaches
+            Long breaches = ticketRepositoryReadOnly.countSlaBreachesNative(username);
+            dto.setSlaBreaches(breaches == null ? 0 : breaches);
 
-        // 5) trends - tickets created per day last 7 days
-        List<Object[]> rows = ticketRepositoryReadOnly.findTicketsPerDayLast7Native(username);
-        List<Integer> trends = rows.stream()
-                .map(row -> {
-                    if (row == null || row.length < 2 || row[1] == null) return 0;
-                    Object countObj = row[1];
+            // 5) trends - tickets created per day last 7 days
+            List<Object[]> rows = ticketRepositoryReadOnly.findTicketsPerDayLast7Native(username);
+            List<Integer> trends = rows.stream()
+                    .map(row -> {
+                        if (row == null || row.length < 2 || row[1] == null) return 0;
+                        Object countObj = row[1];
 
-                    if (countObj instanceof Number) {
-                        return ((Number) countObj).intValue();
-                    } else if (countObj instanceof String) {
-                        try {
-                            return Integer.parseInt((String) countObj);
-                        } catch (NumberFormatException ex) {
-                            return 0;
+                        if (countObj instanceof Number) {
+                            return ((Number) countObj).intValue();
+                        } else if (countObj instanceof String) {
+                            try {
+                                return Integer.parseInt((String) countObj);
+                            } catch (NumberFormatException ex) {
+                                return 0;
+                            }
+                        } else if (countObj instanceof BigDecimal) {
+                            return ((BigDecimal) countObj).intValue();
+                        } else {
+                            try {
+                                return Integer.parseInt(countObj.toString());
+                            } catch (Exception ex) {
+                                return 0;
+                            }
                         }
-                    } else if (countObj instanceof BigDecimal) {
-                        return ((BigDecimal) countObj).intValue();
-                    } else {
-                        try {
-                            return Integer.parseInt(countObj.toString());
-                        } catch (Exception ex) {
-                            return 0;
-                        }
-                    }
-                })
-                .collect(Collectors.toList());
+                    })
+                    .collect(Collectors.toList());
 
-        // Ensure length is 7 (fallback to zeros if native query returned nothing)
-        if (trends == null || trends.size() == 0) {
-            trends = List.of(0, 0, 0, 0, 0, 0, 0);
-        } else if (trends.size() < 7) {
-            // pad left with zeros if necessary (shouldn't happen with generate_series, but safe)
-            int pad = 7 - trends.size();
-            List<Integer> padded = List.copyOf(List.of(new Integer[0])); // placeholder
-            padded = java.util.stream.Stream.concat(java.util.stream.Stream.generate(() -> 0).limit(pad), trends.stream()).collect(Collectors.toList());
-            trends = padded;
+            // Ensure length is 7 (fallback to zeros if native query returned nothing)
+            if (trends == null || trends.size() == 0) {
+                trends = List.of(0, 0, 0, 0, 0, 0, 0);
+            } else if (trends.size() < 7) {
+                // pad left with zeros if necessary (shouldn't happen with generate_series, but safe)
+                int pad = 7 - trends.size();
+                List<Integer> padded = List.copyOf(List.of(new Integer[0])); // placeholder
+                padded = java.util.stream.Stream.concat(java.util.stream.Stream.generate(() -> 0).limit(pad), trends.stream()).collect(Collectors.toList());
+                trends = padded;
+            }
+
+            dto.setTrends(trends);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ResponseDto dto1 = new ResponseDto(false, "Internal server error", Collections.emptyMap(), 500);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto1);
         }
-
-        dto.setTrends(trends);
 
         ResponseDto response = new ResponseDto(true, "Stage counts fetched", dto, 200);
         return ResponseEntity.ok(response);
     }
 
+    @Override
+    public ResponseEntity<ResponseDto> setUserFeedback(FeedbackDto feedbackDto) {
+
+        UserFeedback userFeedback = new UserFeedback();
+        if (!feedbackDto.username().isEmpty()) {
+            userFeedback = new UserFeedback();
+            userFeedback.setSsoId(feedbackDto.username());
+            userFeedback.setFeedback(feedbackDto.feedback());
+            userFeedbackRepository.save(userFeedback);
+        }
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new ResponseDto(true, "User feedback saved successfully.", userFeedback, 200));
+
+    }
 
 
     /**
@@ -449,29 +502,4 @@ public class SysNeoMapService implements ISysNeoMap {
         Map<String, String> foundUserNames = (Map<String, String>) responseDto.getData();
         return foundUserNames;
     }
-
-
-
-    private ResponseDto getAllUserInfo(String searchQuery, String initialAssigneeLevel) {
-        // Build the API URL
-        String apiUrl = userJourneyApiUrl + "/getUserSearchInfo?query=" + searchQuery + "&supportLevel=" +
-                initialAssigneeLevel;
-
-        ResponseEntity<ResponseDto> response = restTemplate.getForEntity(apiUrl, ResponseDto.class);
-
-        // Check if REST call failed completely
-        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-            throw new RuntimeException("Failed to fetch user journey: " + response.getStatusCode());
-        }
-
-        ResponseDto body = response.getBody();
-
-        // Check API-defined statusCode inside body
-        if (!body.isSuccess()) {
-            throw new RuntimeException("API returned failure: " + body.getMessage() + " (status=" + body.getStatus()
-                    + ")");
-        }
-        return body;
-    }
-
 }

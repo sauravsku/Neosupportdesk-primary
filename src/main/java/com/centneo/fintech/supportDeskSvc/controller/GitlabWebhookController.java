@@ -1,11 +1,11 @@
 package com.centneo.fintech.supportDeskSvc.controller;
 
+import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.GitlabIssueRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.GitlabIssueRepository;
-import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabService;
+import com.centneo.fintech.supportDeskSvc.services.ticketSvc.GitlabService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.centneo.fintech.supportDeskSvc.model.primary.GitLabIssues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +13,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 
@@ -21,18 +25,22 @@ import java.util.Optional;
 public class GitlabWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(GitlabWebhookController.class);
-    private final ObjectMapper mapper = new ObjectMapper();
 
+    private final ObjectMapper mapper;
     private final GitlabIssueRepository gitlabIssueRepository; // write repo
     private final GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly; // read-only repo
     private final String webhookSecret;
     private final GitlabService gitlabService;
 
-    public GitlabWebhookController(GitlabIssueRepository repo,
-                                   GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly,
-                                   @Value("${gitlab.webhook-secret}") String webhookSecret, GitlabService gitlabService) {
+    public GitlabWebhookController(
+            GitlabIssueRepository repo,
+            GitlabIssueRepositoryReadOnly gitlabIssueRepositoryReadOnly,
+            ObjectMapper mapper,
+            @Value("${gitlab.webhook-secret:}") String webhookSecret, GitlabService gitlabService) {
+
         this.gitlabIssueRepository = repo;
         this.gitlabIssueRepositoryReadOnly = gitlabIssueRepositoryReadOnly;
+        this.mapper = mapper;
         this.webhookSecret = webhookSecret;
         this.gitlabService = gitlabService;
     }
@@ -43,15 +51,17 @@ public class GitlabWebhookController {
             @RequestHeader(value = "X-Gitlab-Event", required = false) String event,
             @RequestBody String body) {
 
-        // 1) Validate secret
+        // 1) Validate secret (if configured)
+
+        log.info("Webhook is called with token: {} and event: {}", token, event);
         if (webhookSecret != null && !webhookSecret.isBlank()) {
             if (token == null || !webhookSecret.equals(token)) {
-                log.warn("Invalid GitLab webhook token");
+                log.warn("Invalid GitLab webhook token. providedTokenPresent={} event={}", token != null, event);
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid token");
             }
         }
 
-        // 2) Validate event
+        // 2) Validate event (only handle issue events)
         if (event == null || !event.toLowerCase().contains("issue")) {
             log.info("Ignoring non-issue event: {}", event);
             return ResponseEntity.ok("ignored");
@@ -59,14 +69,13 @@ public class GitlabWebhookController {
 
         try {
             JsonNode root = mapper.readTree(body);
-            // GitLab issue webhook uses object_kind = "issue" and `object_attributes`
             JsonNode attributes = root.path("object_attributes");
             if (attributes.isMissingNode()) {
                 log.warn("Missing object_attributes in payload");
                 return ResponseEntity.badRequest().body("Missing payload");
             }
 
-            String action = attributes.path("action").asText(); // "open", "close", "reopen", "update"
+            String action = attributes.path("action").asText(null); // "open", "close", "reopen", "update"
             long projectIdPrimitive = attributes.path("project_id").asLong(root.path("project").path("id").asLong(0));
             long issueIidPrimitive = attributes.path("iid").asLong();
 
@@ -80,8 +89,9 @@ public class GitlabWebhookController {
 
             // support both `assignee` (single) and `assignees` (array)
             Long assigneeId = null;
-            if (root.path("assignee").has("id") && root.path("assignee").path("id").isNumber()) {
-                assigneeId = root.path("assignee").path("id").asLong();
+            JsonNode assigneeNode = root.path("assignee");
+            if (assigneeNode != null && assigneeNode.has("id") && assigneeNode.path("id").isNumber()) {
+                assigneeId = assigneeNode.path("id").asLong();
             } else if (root.path("assignees").isArray() && root.path("assignees").size() > 0) {
                 JsonNode first = root.path("assignees").get(0);
                 if (first.path("id").isNumber()) {
@@ -100,17 +110,17 @@ public class GitlabWebhookController {
             });
 
             // update fields you care about (ensure non-null for DB not-null columns)
-            issue.setIssueTitle(title != null ? title : ""); // avoid null for non-null column
-            issue.setIssueDescription(description); // nullable in updated entity
-            issue.setIssueLabel(mapLabels(root.path("labels"))); // safe mapping
-            issue.setIssueType(attributes.path("issue_type").asText(null)); // optional
+            issue.setIssueTitle(title != null ? title : "");
+            issue.setIssueDescription(description);
+            issue.setIssueLabel(mapLabels(root.path("labels")));
+            issue.setIssueType(attributes.path("issue_type").asText(null));
             issue.setWebUrl(webUrl);
-            issue.setAssigneeId(assigneeId); // entity expects Long
-            issue.setGitlabUpdatedAt(parseIso(attributes.path("updated_at").asText(null))); // parse ISO -> Date
+            issue.setGitLabUserId(assigneeId);
+            issue.setGitlabUpdatedAt(parseIso(attributes.path("updated_at").asText(null)));
 
             gitlabIssueRepository.save(issue);
 
-            log.info("Processed GitLab issue webhook: project={} iid={} action={}", projectId, issueIid, action);
+            log.info("Processed GitLab issue webhook: project={} iid={} action={} state={}", projectId, issueIid, action, state);
             return ResponseEntity.ok("processed");
         } catch (Exception e) {
             log.error("Failed to process GitLab webhook", e);
@@ -132,15 +142,18 @@ public class GitlabWebhookController {
         return sb.length() > 0 ? sb.toString() : null;
     }
 
-    private java.util.Date parseIso(String iso) {
+    private LocalDateTime parseIso(String iso) {
         if (iso == null || iso.isBlank()) return null;
+
         try {
-            return java.util.Date.from(java.time.Instant.parse(iso));
+            Instant instant = Instant.parse(iso);
+            return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
         } catch (Exception e) {
             log.warn("Failed to parse ISO date: {}", iso, e);
             return null;
         }
     }
+
 
     @GetMapping("/issue-status")
     public ResponseEntity<?> getIssueStatus(@RequestParam Long projectId, @RequestParam Long iid) {
@@ -150,7 +163,6 @@ public class GitlabWebhookController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("success", false, "message", "GitLab issue not found"));
             }
-            // return the entity (or map to DTO if you prefer)
             return ResponseEntity.ok(opt.get());
         } catch (Exception e) {
             log.error("Error fetching gitlab issue", e);
@@ -162,14 +174,15 @@ public class GitlabWebhookController {
     @GetMapping("/issue-status-tid")
     public ResponseEntity<?> getIssueStatusByTicketId(@RequestParam String ticketId) {
         try {
-            Optional<GitLabIssues> opt = gitlabService.getIssueStatusByTicketId(ticketId);
+            Optional<GitLabIssues> opt = gitlabIssueRepositoryReadOnly.findByTicketId(ticketId);
             if (opt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("success", false, "message", "GitLab issue not found"));
             }
-            return ResponseEntity.ok(opt.get());
+            GitLabIssues gitLabIssue = gitlabService.fetchCurrentIssueStatusByTicketId(opt.get());
+            return ResponseEntity.ok(gitLabIssue);
         } catch (Exception e) {
-            log.error("Error fetching gitlab issue", e);
+            log.error("Error fetching gitlab issue by ticketId={}", ticketId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("success", false, "message", "Server error"));
         }

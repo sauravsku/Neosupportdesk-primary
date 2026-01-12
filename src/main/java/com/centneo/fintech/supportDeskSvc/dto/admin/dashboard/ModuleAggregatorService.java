@@ -167,6 +167,7 @@ public class ModuleAggregatorService {
                         if (assigneeMatches) {
                             // user's in-progress counts as assigned for their KPI
                             stats.put("assigned", stats.getOrDefault("assigned", 0) + 1);
+                            stats.put("in_progress", stats.getOrDefault("in_progress", 0) + 1);
                         } else {
                             stats.put("in_progress", stats.getOrDefault("in_progress", 0) + 1);
                         }

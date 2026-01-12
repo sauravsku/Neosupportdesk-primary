@@ -53,10 +53,10 @@ public class EscalationScheduler {
 
         for (Tickets t : openTickets) {
             try {
-                if (t.getSlaDueDatetime() == null) continue;
+                if (t.getSlaEndDueDatetime() == null) continue;
                 if (Boolean.TRUE.equals(t.getBreachedFlag())) continue;
 
-                boolean breached = now.isAfter(t.getSlaDueDatetime());
+                boolean breached = now.isAfter(t.getSlaEndDueDatetime());
                 if (!breached) continue;
 
                 // persist breached flag early to avoid duplicate processing by other schedulers
@@ -82,7 +82,7 @@ public class EscalationScheduler {
 
                 // call domain escalate (keeps business logic in TicketService)
                 try {
-                    ticketService.escalate(t.getTicketId());
+                    ticketService.escalate(t.getTicketId(), "System Auto-Escalation, Sla breach found.");
                 } catch (Exception ex) {
                     log.error("ticketService.escalate failed for ticket {}: {}", t.getTicketId(), ex.getMessage(), ex);
                 }

@@ -44,8 +44,10 @@ public class AnalyticsService {
 
             Optional<Tickets> ticket =
                     ticketsRepositoryReadOnly.findById(escalationHistory.getTicketId());
-            if (!ticket.get().getCurrStatus().equalsIgnoreCase(TicketStatusEnum.CLOSED.getLabel().toLowerCase())) {
-                count++;
+            if (ticket.isPresent()) {
+                if (!ticket.get().getCurrStatus().equalsIgnoreCase(TicketStatusEnum.CLOSED.getLabel().toLowerCase())) {
+                    count++;
+                }
             }
         }
 

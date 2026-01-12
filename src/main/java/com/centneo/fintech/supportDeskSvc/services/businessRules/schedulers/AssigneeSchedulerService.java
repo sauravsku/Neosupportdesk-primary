@@ -1,11 +1,11 @@
 package com.centneo.fintech.supportDeskSvc.services.businessRules.schedulers;
 
+import com.centneo.fintech.supportDeskSvc.dto.AssigneeMasterDto;
+import com.centneo.fintech.supportDeskSvc.dto.ModuleRequestDto;
 import com.centneo.fintech.supportDeskSvc.enums.SupportLevelEnum;
-import com.centneo.fintech.supportDeskSvc.model.primary.EscalationHistory;
-import com.centneo.fintech.supportDeskSvc.model.primary.SupportUser;
-import com.centneo.fintech.supportDeskSvc.model.primary.TicketDetails;
-import com.centneo.fintech.supportDeskSvc.model.primary.Tickets;
+import com.centneo.fintech.supportDeskSvc.model.primary.*;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationHistoryRepositoryReadOnly;
+import com.centneo.fintech.supportDeskSvc.repository.read.repository.SecondaryCardRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.SupportUserRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.EscalationHistoryRepository;
@@ -13,14 +13,23 @@ import com.centneo.fintech.supportDeskSvc.repository.write.repository.SupportUse
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketDetailRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
 import com.centneo.fintech.supportDeskSvc.enums.TicketStatusEnum;
+import com.centneo.fintech.supportDeskSvc.services.audit.AuditServiceI;
+import com.centneo.fintech.supportDeskSvc.services.external.PrimaryApiSvc;
 import com.centneo.fintech.supportDeskSvc.services.notification.INotificationService;
+import com.centneo.fintech.supportDeskSvc.services.ticketSvc.GitlabService;
+import com.centneo.fintech.supportDeskSvc.services.ticketSvc.TicketService;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -29,6 +38,9 @@ import java.util.Optional;
 @Service
 public class AssigneeSchedulerService {
 
+    private static final Logger log = LoggerFactory.getLogger(AssigneeSchedulerService.class);
+
+    private final TicketService ticketService;
     private final TicketsRepository ticketsRepository;
     private final TicketDetailRepository ticketDetailRepository;
     private final TicketRepositoryReadOnly ticketRepositoryReadOnly;
@@ -38,13 +50,18 @@ public class AssigneeSchedulerService {
     private final EscalationHistoryRepository escalationHistoryRepository;
     private final EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly;
     private final INotificationService iNotificationService;
+    private final PrimaryApiSvc primaryApiSvc;
+    private final SecondaryCardRepositoryReadOnly secondaryCardRepositoryReadOnly;
+    private final GitlabService gitlabService;
+    private final AuditServiceI auditServiceI;
 
     // configurable batch size per run
     private final int batchSize;
 
-    public AssigneeSchedulerService(TicketsRepository ticketsRepository, TicketDetailRepository ticketDetailRepository, TicketRepositoryReadOnly ticketRepositoryReadOnly,
-                                    SupportUserRepository supportUserRepository, SupportUserRepositoryReadOnly supportUserRepositoryReadOnly, SupportUserSyncService supportUserSyncService, EscalationHistoryRepository escalationHistoryRepository, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, INotificationService iNotificationService,
+    public AssigneeSchedulerService(TicketService ticketService, TicketsRepository ticketsRepository, TicketDetailRepository ticketDetailRepository, TicketRepositoryReadOnly ticketRepositoryReadOnly,
+                                    SupportUserRepository supportUserRepository, SupportUserRepositoryReadOnly supportUserRepositoryReadOnly, SupportUserSyncService supportUserSyncService, EscalationHistoryRepository escalationHistoryRepository, EscalationHistoryRepositoryReadOnly escalationHistoryRepositoryReadOnly, INotificationService iNotificationService, PrimaryApiSvc primaryApiSvc, SecondaryCardRepositoryReadOnly secondaryCardRepositoryReadOnly, GitlabService gitlabService, AuditServiceI auditServiceI,
                                     @Value("${assignee.scheduler.batch-size:20}") int batchSize) {
+        this.ticketService = ticketService;
         this.ticketsRepository = ticketsRepository;
         this.ticketDetailRepository = ticketDetailRepository;
         this.ticketRepositoryReadOnly = ticketRepositoryReadOnly;
@@ -54,6 +71,10 @@ public class AssigneeSchedulerService {
         this.escalationHistoryRepository = escalationHistoryRepository;
         this.escalationHistoryRepositoryReadOnly = escalationHistoryRepositoryReadOnly;
         this.iNotificationService = iNotificationService;
+        this.primaryApiSvc = primaryApiSvc;
+        this.secondaryCardRepositoryReadOnly = secondaryCardRepositoryReadOnly;
+        this.gitlabService = gitlabService;
+        this.auditServiceI = auditServiceI;
         this.batchSize = batchSize;
     }
 
@@ -65,7 +86,7 @@ public class AssigneeSchedulerService {
         List<String> ticketLevels = Arrays.asList("L1", "L2", "L3");
         for (String level : ticketLevels) {
             try {
-                supportUserSyncService.syncSupportUsers();
+                //supportUserSyncService.syncSupportUsers();
                 assignPendingForLevel(level);
             } catch (Exception e) {
                 // log and continue with next level
@@ -80,7 +101,6 @@ public class AssigneeSchedulerService {
         // page size
         PageRequest page = PageRequest.of(0, batchSize);
 
-        // fetch oldest pending tickets for this level
         List<Tickets> pendings = new ArrayList<>();
         List<String> requesterLevels = Arrays.asList("L1", "L2", "L3");
         for (String requesterLevel : requesterLevels) {
@@ -97,82 +117,77 @@ public class AssigneeSchedulerService {
 
         for (Tickets ticket : pendings) {
             // attempt to pick an eligible user with DB lock
+            log.info("ASSIGNING PENDING TICKET FOR TICKET_ID: {}", ticket.getTicketId());
             String resolvedLevel = SupportLevelEnum.fromCode(ticketLevel).getLabel();
-            List<SupportUser> eligibles = supportUserRepositoryReadOnly.findEligibleForLevelForUpdate(resolvedLevel);
-
-            SupportUser chosen = null;
-            if (eligibles != null && !eligibles.isEmpty()) {
-                // eligibles are ordered by currentAssigned, lastAssignedAt
-                chosen = eligibles.get(0);
-            } else {
-                // fallback: pick any active user even if capacity reached (prevents tickets starving)
-                List<SupportUser> active = supportUserRepositoryReadOnly.findActiveForLevelForUpdate(ticketLevel);
-                if (active != null && !active.isEmpty()) chosen = active.get(0);
-            }
-
-            if (chosen == null) {
-                // no users configured for this level -> leave ticket in queue
-                continue;
-            }
-
-            // double-check capacity in Java (defensive)
-            if (chosen.getCapacity() != null && chosen.getCurrentAssigned() != null && chosen.getCurrentAssigned() >= chosen.getCapacity()) {
-                // if capacity fully reached and we used fallback, still check next user
-                // try to find next eligible
-                Optional<SupportUser> next = eligibles.stream().filter(u -> u.getCurrentAssigned() < u.getCapacity()).skip(1).findFirst();
-                if (next.isPresent()) chosen = next.get();
-                else {
-                    // no one available now
-                    continue;
-                }
-            }
+            ModuleRequestDto moduleRequestDto = ticketService.getModuleRequestDtoFromTicket(ticket);
+            log.info("Module request with pid={}, sid={}, tid={}, qid={}", moduleRequestDto.primaryRef(), moduleRequestDto.secondaryRef(), moduleRequestDto.tertiaryRef(), moduleRequestDto.quadRef());
+            Optional<AssigneeMasterDto> eligibleUser = primaryApiSvc
+                    .findEligibleForLevelForUpdate(moduleRequestDto, resolvedLevel);
+            log.info("Eligible user= {}", eligibleUser);
 
             // perform assignment
             try {
-                assignTicketToUser(ticket, chosen);
+                assignTicketToUser(ticket, eligibleUser.get());
             } catch (Exception ex) {
                 // assignment failed for this ticket/user pair; log and move on
-                System.err.println("Failed to assign ticket " + ticket.getTicketId() + " to " + chosen.getUsername() + ": " + ex.getMessage());
+                //System.err.println("Failed to assign ticket " + ticket.getTicketId() + " to " + chosen.getUsername() + ": " + ex.getMessage());
             }
         }
     }
 
     @Transactional
-    protected void assignTicketToUser(Tickets ticket, SupportUser user) {
+    protected void assignTicketToUser(Tickets ticket, AssigneeMasterDto user) {
         // defensive checks
         if (ticket == null || user == null) return;
 
-        // re-fetch user with pessimistic lock (optional) to ensure fresh counts
-        SupportUser fresh = supportUserRepository.findById(user.getUserId()).orElse(user);
-
         // increment assigned count
-        Integer current = fresh.getCurrentAssigned() == null ? 0 : fresh.getCurrentAssigned();
-        fresh.setCurrentAssigned(current + 1);
-        fresh.setLastAssignedAt(LocalDateTime.now());
+        SecondaryCard sec = secondaryCardRepositoryReadOnly.findById(Long.valueOf(ticket.getSid())).get();
+        Long pid = sec.getPrimaryCard().getPid();
+        AssigneeMasterDto assigneeMasterDto = primaryApiSvc
+                .increaseAssigneeActiveCnt(user.ssoId(), pid, user.userLevel()).get();
 
         // update ticket
         String prevAssignee = ticket.getCurrentAssignee();
-        ticket.setCurrentAssignee(fresh.getUsername());
-        ticket.setCurrentAssigneeSL(fresh.getSupportLevel()); // assign level on ticket
-
+        String prevAssigneeLvl = ticket.getCurrentAssigneeSL();
+        ticket.setCurrentAssignee(String.valueOf(assigneeMasterDto.ssoId()));
+        ticket.setCurrentAssigneeSL(assigneeMasterDto.userLevel()); // assign level on ticket
         ticket.setCurrStatus(TicketStatusEnum.REASSIGNED.getLabel());
+
+
+        //Update gitlab issue if exists.
+        Optional<GitLabIssues> gitLabIssues = gitlabService.getGitlabIssueByTicket(ticket.getTicketId());
+
+        if (gitLabIssues.isPresent()) {
+            gitlabService.updateIssue(gitLabIssues.get(), ticket);
+        }
+
 
         Optional<EscalationHistory> escalationHistory =
                 escalationHistoryRepositoryReadOnly.findByTicketId(ticket.getTicketId());
 
         if (escalationHistory.isPresent()) {
             EscalationHistory escalationHistory1 = escalationHistory.get();
-            escalationHistory1.setAssigneeAfter(fresh.getUsername());
-            escalationHistory1.setNote(escalationHistory1.getNote().concat("\n Re-assigned to " + fresh.getUsername()));;
+            escalationHistory1.setAssigneeAfter(String.valueOf(assigneeMasterDto.ssoId()));
+            escalationHistory1.setNote(escalationHistory1.getNote().concat("\n Re-assigned to " + String.valueOf(assigneeMasterDto.ssoId())));;
             escalationHistoryRepository.save(escalationHistory1);
         }
 
-        // persist both
-        supportUserRepository.save(fresh);
+        // save
         Tickets saved = ticketsRepository.save(ticket);
+        log.info("Saved ticket={}", saved);
         iNotificationService.createAssigneeChangeNotification(saved, prevAssignee);
         saveTicketAssigneeHistory(saved);
 
+        //Audit Entry.
+        OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
+        String activity = "Re-assigned from " +
+                prevAssignee + "(" + prevAssigneeLvl + ")"
+                + " to "
+                + saved.getCurrentAssignee() + "(" + saved.getCurrentAssigneeSL() + ")"
+                + " at "
+                + istTime;
+
+        auditServiceI.createAuditLog(saved, TicketStatusEnum.REASSIGNED.getCode(), activity);
     }
 
     private void saveTicketAssigneeHistory(Tickets savedTicket) {

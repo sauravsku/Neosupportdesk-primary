@@ -33,4 +33,6 @@ public interface IPreference {
     ResponseEntity<ResponseDto> getFaqs();
 
     String getSsoName(String ssoId);
+
+    ResponseEntity<ResponseDto> getPriRefIdFromJourneyId(Long journeyId);
 }

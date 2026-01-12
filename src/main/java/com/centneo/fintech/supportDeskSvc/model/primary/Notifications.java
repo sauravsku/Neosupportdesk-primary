@@ -19,7 +19,9 @@ public class Notifications extends BaseEntity {
     @Column(name = "title")
     private String title;
 
-    @Column(name = "body")
+    @Lob
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "body", columnDefinition = "CLOB")
     private String body;
 
     @Column(name = "type")

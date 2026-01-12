@@ -40,6 +40,9 @@ public class EscalationHistory {
     @Column(name = "sla_days")
     private Integer slaDays;
 
+    @Column(name = "curr_status")
+    private String currentStatus;
+
     @Column(name = "sla_due_datetime")
     private LocalDateTime slaDueDatetime;
 

@@ -13,6 +13,7 @@ import java.util.*;
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ModuleItemDto {
+
     private Object pid;                     // keep flexible (Long / String)
     private String name;
     private String description;
