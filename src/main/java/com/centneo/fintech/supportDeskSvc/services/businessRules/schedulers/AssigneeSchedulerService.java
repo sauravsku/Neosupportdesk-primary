@@ -117,32 +117,37 @@ public class AssigneeSchedulerService {
 
         for (Tickets ticket : pendings) {
             // attempt to pick an eligible user with DB lock
-            log.info("ASSIGNING PENDING TICKET FOR TICKET_ID: {}", ticket.getTicketId());
+            //log.info("ASSIGNING PENDING TICKET FOR TICKET_ID: {}", ticket.getTicketId());
             String resolvedLevel = SupportLevelEnum.fromCode(ticketLevel).getLabel();
             ModuleRequestDto moduleRequestDto = ticketService.getModuleRequestDtoFromTicket(ticket);
-            log.info("Module request with pid={}, sid={}, tid={}, qid={}", moduleRequestDto.primaryRef(), moduleRequestDto.secondaryRef(), moduleRequestDto.tertiaryRef(), moduleRequestDto.quadRef());
-            Optional<AssigneeMasterDto> eligibleUser = primaryApiSvc
-                    .findEligibleForLevelForUpdate(moduleRequestDto, resolvedLevel);
-            log.info("Eligible user= {}", eligibleUser);
+            //log.info("Module request with pid={}, sid={}, tid={}, qid={}", moduleRequestDto.primaryRef(), moduleRequestDto.secondaryRef(), moduleRequestDto.tertiaryRef(), moduleRequestDto.quadRef());
 
-            // perform assignment
-            try {
-                assignTicketToUser(ticket, eligibleUser.get());
-            } catch (Exception ex) {
-                // assignment failed for this ticket/user pair; log and move on
-                //System.err.println("Failed to assign ticket " + ticket.getTicketId() + " to " + chosen.getUsername() + ": " + ex.getMessage());
-            }
+            primaryApiSvc
+                    .findEligibleForLevelForUpdate(moduleRequestDto, resolvedLevel)
+                    .ifPresentOrElse(
+                            user -> {
+                                log.info("Eligible user = {}", user);
+                                try {
+                                    assignTicketToUser(ticket, user);
+                                } catch (Exception ex) {
+                                    log.error("Exception while assigning ticket", ex);
+                                }
+                            },
+                            () -> log.info("No eligible user found for ticket {}", ticket.getTicketId())
+                    );
         }
     }
 
     @Transactional
     protected void assignTicketToUser(Tickets ticket, AssigneeMasterDto user) {
+
         // defensive checks
         if (ticket == null || user == null) return;
 
         // increment assigned count
         SecondaryCard sec = secondaryCardRepositoryReadOnly.findById(Long.valueOf(ticket.getSid())).get();
         Long pid = sec.getPrimaryCard().getPid();
+
         AssigneeMasterDto assigneeMasterDto = primaryApiSvc
                 .increaseAssigneeActiveCnt(user.ssoId(), pid, user.userLevel()).get();
 
@@ -153,14 +158,12 @@ public class AssigneeSchedulerService {
         ticket.setCurrentAssigneeSL(assigneeMasterDto.userLevel()); // assign level on ticket
         ticket.setCurrStatus(TicketStatusEnum.REASSIGNED.getLabel());
 
-
         //Update gitlab issue if exists.
         Optional<GitLabIssues> gitLabIssues = gitlabService.getGitlabIssueByTicket(ticket.getTicketId());
 
         if (gitLabIssues.isPresent()) {
             gitlabService.updateIssue(gitLabIssues.get(), ticket);
         }
-
 
         Optional<EscalationHistory> escalationHistory =
                 escalationHistoryRepositoryReadOnly.findByTicketId(ticket.getTicketId());

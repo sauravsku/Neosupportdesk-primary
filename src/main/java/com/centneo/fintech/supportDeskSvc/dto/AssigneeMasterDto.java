@@ -1,5 +1,7 @@
 package com.centneo.fintech.supportDeskSvc.dto;
 
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 public record AssigneeMasterDto(

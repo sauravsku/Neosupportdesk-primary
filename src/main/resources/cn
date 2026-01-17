@@ -56,12 +56,12 @@ userSync:
 
 assignee:
   scheduler:
-    delay-ms: 30000  #30SECS
+    delay-ms: 10000  #30SECS
     batch-size: 20 # how many pending tickets to process per level each run
 
 escalation:
   scheduler:
-    delay-ms: 30000 #5Mins
+    delay-ms: 5000 #5Mins
 
 
 jwt:

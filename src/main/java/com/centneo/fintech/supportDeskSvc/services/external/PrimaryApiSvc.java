@@ -63,39 +63,46 @@ public class PrimaryApiSvc {
         }
     }
 
-    public Optional<AssigneeMasterDto> findEligibleForLevelForUpdate(ModuleRequestDto moduleRequestDto,
-                                                                     String resolvedLevel) {
+    public Optional<AssigneeMasterDto> findEligibleForLevelForUpdate(
+            ModuleRequestDto moduleRequestDto,
+            String resolvedLevel) {
 
-        String apiUrl = BASE_URL + "/service/get-eligible-assignee?level=" + SupportLevelEnum.fromLabel(resolvedLevel).getCode();
+        try {
+            String apiUrl = BASE_URL + "/service/get-eligible-assignee?level="
+                    + SupportLevelEnum.fromLabel(resolvedLevel).getCode();
 
-        log.info("Calling API for findEligibleForLevelForUpdate from {}",apiUrl);
-        ResponseEntity<ResponseDto> response = restTemplate.postForEntity(apiUrl, moduleRequestDto, ResponseDto.class);
+            log.info("Calling API for findEligibleForLevelForUpdate from {}", apiUrl);
 
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            ResponseEntity<ResponseDto> response =
+                    restTemplate.postForEntity(apiUrl, moduleRequestDto, ResponseDto.class);
+
+            if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+                return Optional.empty();
+            }
+
             ResponseDto body = response.getBody();
 
-            if (body.isSuccess() && body.getData() != null) {
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-                mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-                mapper.disable(com.fasterxml.jackson.databind.DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
-
-                try {
-                    String jsonData = mapper.writeValueAsString(body.getData());
-                    AssigneeMasterDto dto = mapper.readValue(jsonData, AssigneeMasterDto.class);
-                    log.info("Parsed response assignee master dto= {}", dto.toString());
-                    return Optional.ofNullable(dto);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Failed to parse user data", e);
-                }
-            } else {
-                throw new RuntimeException("API returned failure: " + body.getMessage());
+            if (!body.isSuccess() || body.getData() == null) {
+                return Optional.empty();
             }
-        } else {
-            throw new RuntimeException("Failed to fetch user data: " + response.getStatusCode());
+
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            mapper.disable(com.fasterxml.jackson.databind.DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
+
+            AssigneeMasterDto dto =
+                    mapper.convertValue(body.getData(), AssigneeMasterDto.class);
+
+            log.info("Parsed response assignee master dto={}", dto);
+            return Optional.ofNullable(dto);
+
+        } catch (Exception e) {
+            log.warn("No eligible user found for {}. Reason={}",
+                    moduleRequestDto, e.getMessage());
+            return Optional.empty();
         }
     }
-
 
     public Optional<AssigneeMasterDto> increaseAssigneeActiveCnt(String ssoId, Long pid, String userLevel) {
 

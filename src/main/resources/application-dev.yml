@@ -42,11 +42,11 @@ spring:
       naming:
         implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.Oracle12cDialect
-        format_sql: true
+        format_sql: false
 
 # Optional: only if you need Spring to run schema/data SQL scripts at startup
 # Remove or comment out if data already exists

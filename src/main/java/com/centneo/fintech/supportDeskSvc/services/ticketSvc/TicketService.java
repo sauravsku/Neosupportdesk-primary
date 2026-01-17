@@ -424,6 +424,7 @@ public class TicketService implements ITicket {
         Tickets saved = ticketsRepository.save(t);
         saveTicketAssigneeHistory(saved);
 
+        ticketEventPublisher.publishTicketUpdate(saved);
         iNotificationService.createEscalationNotification(saved, hist);
 
         //Audit entry
