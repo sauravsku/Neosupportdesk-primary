@@ -6,6 +6,27 @@ spring:
   mvc:
     servlet:
       path: /api/primary
+  mail:
+    host: 10.16.33.177
+    port: 25
+    username: neosupportdesk.centralbank.bank.in
+    password: hjkhhkjhjk
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            enable: true
+            trust: mail.corp.example.com
+
+app:
+  email:
+    from: noreplynsd_notifications@centralbank.org.in
+    from-name: "Neo Support Desk"
+    reply-to: neosupportdesk.centralbank.bank.in
 
 server:
   port: 9002
@@ -47,7 +68,6 @@ jwt:
   public-key-file: classpath:keys/jwt_public_key.pem
   issuer: centneo
 
-
 aws:
   endpoint-url: ${AWS_ENDPOINT_URL}
   region: ${AWS_REGION} # change to your region
@@ -55,7 +75,6 @@ aws:
   access-key: ${AWS_ACCESS_KEY}
   secret-key: ${AWS_SECRET_KEY}
   presign-expiration-minutes: 15
-
 
 logging:
   level:
@@ -69,6 +88,8 @@ logging:
     #org.hibernate.loader.plan.exec.process.internal: TRACE
 
 
+
+
 spring:
   application:
     name: CentNeoSupportDeskSvc
@@ -77,12 +98,33 @@ spring:
   mvc:
     servlet:
       path: /api/primary
+  mail:
+    host: mail.corp.example.com
+    port: 465
+    username: svc-no-reply@example.com
+    password: hjkhhkjhjk
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            enable: true
+            trust: mail.corp.example.com
 
 server:
   port: 9003
 
 supportDeskAuthSvc:
   base-url: http://localhost:9002/api
+
+app:
+  email:
+    from: no-reply@example.com
+    from-name: "Neo Support Desk"
+    reply-to: support@example.com
 
 #gitlab:
 #  token: glpat-eg9q-KgB4iJw1_JIjvLbGW86MQp1OjdnNmRqCw.01.120ebe2km   #glpat-z5YJoyyE8QGsdbpQu3LS

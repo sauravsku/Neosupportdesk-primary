@@ -9,9 +9,9 @@ public class TicketNotificationService {
 
     private final EmailService emailService;
 
-    public void notifyTicketCreated(String email) {
+    public void notifyTicketCreated(String emailTo) {
         emailService.sendNoReply(
-                email,
+                emailTo,
                 "Ticket Created",
                 "<h3>Your ticket has been created</h3>"
         );

@@ -6,6 +6,7 @@ import com.centneo.fintech.supportDeskSvc.repository.read.repository.EscalationH
 import com.centneo.fintech.supportDeskSvc.repository.read.repository.TicketRepositoryReadOnly;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.EscalationHistoryRepository;
 import com.centneo.fintech.supportDeskSvc.repository.write.repository.TicketsRepository;
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,7 @@ public class SyncService {
         }
     }
 
+    @Transactional
     public void syncLastUpdatedByTicketId(String ticketId, LocalDateTime updatedAt) {
 
         Optional<Tickets> ticket =

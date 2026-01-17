@@ -160,7 +160,7 @@ public class Tickets extends BaseEntity {
             String datePart = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String randomSuffix = UUID.randomUUID().toString().replaceAll("-", "")
                     .substring(0, 5).toUpperCase();
-            this.ticketId = "CNSD_" + datePart + randomSuffix;
+            this.ticketId = "NSD" + datePart + randomSuffix;
         }
 
         if (this.loggedDatetime == null) {

@@ -3,6 +3,8 @@ package com.centneo.fintech.supportDeskSvc.controller;
 import com.centneo.fintech.supportDeskSvc.dto.NotificationDto;
 import com.centneo.fintech.supportDeskSvc.dto.ResponseDto;
 import com.centneo.fintech.supportDeskSvc.services.notification.NotificationService;
+import com.centneo.fintech.supportDeskSvc.services.notification.mail.EmailService;
+import com.centneo.fintech.supportDeskSvc.services.notification.mail.TicketNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final TicketNotificationService ticketNotificationService;
 
     @GetMapping("/getNotifications")
     public ResponseEntity<ResponseDto> getNotifications(@RequestParam("username") String username) {
@@ -46,5 +49,11 @@ public class NotificationController {
             );
             return ResponseEntity.badRequest().body(errorResponse);
         }
+    }
+
+    @GetMapping("send-mail")
+    public ResponseEntity<ResponseDto> sendMail() {
+        ticketNotificationService.notifyTicketCreated("neosupportdesk@centralbank.bank.in");
+        return null;
     }
 }

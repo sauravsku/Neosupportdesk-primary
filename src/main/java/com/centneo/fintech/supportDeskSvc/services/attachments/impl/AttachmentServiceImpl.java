@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -108,7 +109,8 @@ public class AttachmentServiceImpl implements AttachmentService {
         try {
             log.info("Uploading initiated for ticketId={}", ticketId);
 
-            String originalFilename = Objects.requireNonNull(file.getOriginalFilename(), "Original filename required");
+            String originalFilename = Objects.
+                    requireNonNull(file.getOriginalFilename(), "Original filename required");
 
             // Determine next version for this ticket+filename
             int nextVersion = 1;
@@ -172,15 +174,14 @@ public class AttachmentServiceImpl implements AttachmentService {
             attachmentRepository.save(attachment);
             log.info("Attachment uploaded and metadata saved. id={}, ticketId={}, s3Key={}", uuid, ticketId, s3Key);
 
+            OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
             String activity = "Attachment " + attachment.getFileName() + " attached with type" +
                     attachment.getContentType() +" of size "+ readableFileSize(attachment.getSize()) +" for " + ticketId
                     + " at "
-                    + Instant.now();
+                    + istTime;
 
             Optional<Tickets> ticket = ticketRepositoryReadOnly.findByTicketId(ticketId);
-            OffsetDateTime istTime = OffsetDateTime.now(ZoneId.of("Asia/Kolkata"));
             auditServiceI.createAuditLog(ticket.get(), "Attachment", activity);
-            syncService.syncLastUpdatedByTicketId(ticketId, istTime.toLocalDateTime());
             return toDto(attachment);
 
         } catch (IOException ioe) {

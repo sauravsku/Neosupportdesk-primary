@@ -3,6 +3,7 @@ package com.centneo.fintech.supportDeskSvc.services.ticketSvc;
 import java.lang.reflect.Method;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -19,6 +20,7 @@ import com.centneo.fintech.supportDeskSvc.services.audit.AuditServiceI;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SlaRuleService;
 import com.centneo.fintech.supportDeskSvc.services.businessRules.SyncService;
 import com.centneo.fintech.supportDeskSvc.services.external.PrimaryApiSvc;
+import com.centneo.fintech.supportDeskSvc.services.external.TicketEventPublisher;
 import com.centneo.fintech.supportDeskSvc.services.gitlab.AbstractGitlabService;
 import com.centneo.fintech.supportDeskSvc.services.gitlab.GitlabServiceFactory;
 import com.centneo.fintech.supportDeskSvc.services.notification.AnalyticsService;
@@ -28,18 +30,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 
-import jakarta.persistence.Column;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.gitlab4j.api.models.Issue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -74,6 +73,7 @@ public class TicketService implements ITicket {
     private final PrimaryApiSvc primaryApiSvc;
     private final AuditServiceI auditServiceI;
     private final SyncService syncService;
+    private final TicketEventPublisher ticketEventPublisher;
 
 
     /**
@@ -123,18 +123,22 @@ public class TicketService implements ITicket {
             auditServiceI.createAuditLog(savedTicket, TicketStatusEnum.NEW.getCode(), newTicketActivity);
             auditServiceI.createAuditLog(savedTicket, TicketStatusEnum.ASSIGNED.getCode(), null);
 
-            //uploading docs
+            //uploading attachment docs
             if (attachments!=null && !attachments.isEmpty()) {
                 String ticketId = savedTicket.getTicketId();
-                attachments.stream().forEach(item -> {
-                    log.info("Uploading files to s3 bucket.... for ticket ID {}", ticketId);
+                AtomicInteger index = new AtomicInteger(1);
+                attachments.stream().forEach((item) -> {
+                    log.info("Uploading file-{}: {} to s3 bucket.... for ticket ID {}", index, item.getOriginalFilename(),
+                            ticketId);
                     attachmentService.upload(ticketId, item);
+                    index.getAndIncrement();
                 });
             }
 
 
             //set ticket assignees history
             TicketDetails ticketDetails = saveTicketAssigneeHistory(savedTicket);
+            syncService.syncLastUpdatedByTicketId(ticketDetails.getTicketId(), LocalDateTime.now());
             log.info("Ticket details saved successfully, {}", ticketDetails);
 
             messagingTemplate.convertAndSend("/topic/counts/" + newTicketDto.ticketRequester(), analyticsService.syncData(newTicketDto.ticketRequester()));
@@ -264,6 +268,7 @@ public class TicketService implements ITicket {
                 }
             }
 
+            ticketEventPublisher.publishTicketUpdate(savedTicket);
             // build response
             ResponseDto response = new ResponseDto(
                     true,
@@ -426,9 +431,10 @@ public class TicketService implements ITicket {
                 + "(" + hist.getFromLevel() + ")" + " escalated ticket to "
                 + hist.getAssigneeAfter() + "(" + hist.getToLevel() + "). " + "Priority changed from "
                 + hist.getOldPriority()
+                + " to " + hist.getNewPriority()
                 + " due to "
                 + extractEscalationReason(message)
-                + " to " + hist.getNewPriority() + " at " + hist.getCreatedAt();
+                + " at " + hist.getCreatedAt();
         auditServiceI.createAuditLog(saved, TicketStatusEnum.ESCALATED.getCode(), activity, escReason);
 
         return saved;
@@ -613,7 +619,7 @@ public class TicketService implements ITicket {
 
             // continue existing filtering logic
             List<Tickets> filteredTicketByIssues = ticketHandler(distinctTickets);
-
+            ticketEventPublisher.publishTicketUpdate(filteredTicketByIssues);
             ResponseDto response = new ResponseDto(
                     true, message, filteredTicketByIssues, 200
             );
@@ -844,6 +850,7 @@ public class TicketService implements ITicket {
                 case "in progress":
                 case "inprogress": {
                     Tickets updated = inProgress(ticketId, message);
+                    ticketEventPublisher.publishTicketUpdate(updated);
                     syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
                     ResponseDto ok = new ResponseDto(true, "Ticket marked In Progress", updated, 200);
@@ -852,6 +859,7 @@ public class TicketService implements ITicket {
                 case "resolve":
                 case "resolved": {
                     Tickets updated = resolve(ticketId, message);
+                    ticketEventPublisher.publishTicketUpdate(updated);
                     syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket resolved", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
@@ -860,6 +868,7 @@ public class TicketService implements ITicket {
                 case "close":
                 case "closed": {
                     Tickets updated = close(ticketId, message);
+                    ticketEventPublisher.publishTicketUpdate(updated);
                     syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     SecondaryCard sec = secondaryCardRepositoryReadOnly.findById(Long.valueOf(updated.getSid())).get();
                     Long pid = sec.getPrimaryCard().getPid();
@@ -875,6 +884,7 @@ public class TicketService implements ITicket {
                     } else {
                         updated = escalate(ticketId, message);
                     }
+                    ticketEventPublisher.publishTicketUpdate(updated);
                     syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
@@ -889,6 +899,7 @@ public class TicketService implements ITicket {
                     } else {
                         updated = referBack(ticketId, message);
                     }
+                    ticketEventPublisher.publishTicketUpdate(updated);
                     syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(),
@@ -902,6 +913,7 @@ public class TicketService implements ITicket {
                     } else {
                         updated = reAssignTicket(ticketId, message);
                     }
+                    ticketEventPublisher.publishTicketUpdate(updated);
                     syncService.syncLastUpdatedByTicketId(updated.getTicketId(), istTime.toLocalDateTime());
                     ResponseDto ok = new ResponseDto(true, "Ticket escalated", updated, 200);
                     messagingTemplate.convertAndSend("/topic/counts/" + updated.getTicketRequester(), analyticsService.syncData(updated.getTicketRequester()));
@@ -1176,6 +1188,7 @@ public class TicketService implements ITicket {
             TicketComments savedComment = ticketCommentRepository.save(ticketComments);
             addAuditEntryForComments(savedComment.getTicket().getTicketId(), savedComment.getAuthorId(), savedComment.getAuthorRole(),
                     savedComment.getComment(), savedComment.getCreatedAt());
+
             syncService.syncLastUpdatedByTicketId(savedComment.getTicket().getTicketId(), istTime.toLocalDateTime());
             ResponseDto ok = new ResponseDto(true, "Comments added successfully", savedComment, 200);
             return ResponseEntity.ok(ok);
